@@ -13,11 +13,12 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
         }
         h1 { margin-bottom: 20px; color: #00ffff; }
-        .links-container { display: flex; flex-direction: column; gap: 15px; }
+        .links-container { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 400px; }
         a {
             color: #ffffff;
             text-decoration: none;
@@ -28,18 +29,64 @@
             border: 1px solid #333;
             text-align: center;
             transition: 0.2s;
+            text-transform: capitalize;
         }
         a:hover { background: #333; border-color: #00ffff; }
+        .loading { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
 
     <h1>My Vibe Coded Apps</h1>
     
-    <div class="links-container">
-        <a href="./Stopwatch PWA/">⏱️ Open Stopwatch PWA</a>
-        <a href="./Content Screener/content_screener_v4.html">📺 Open Content Screener</a>
+    <div class="links-container" id="apps-container">
+        <div class="loading">Scanning GitHub for apps...</div>
     </div>
 
+    <script>
+        // Tell the script who you are and what repo to look at
+        const username = 'pashadon007';
+        const repo = 'Websites';
+
+        async function fetchApps() {
+            const container = document.getElementById('apps-container');
+            try {
+                // Call GitHub's API to look inside your repository
+                const response = await fetch(`https://api.github.com/repos/${username}/${repo}/contents`);
+                const items = await response.json();
+                
+                // Clear out the "Scanning..." text
+                container.innerHTML = '';
+
+                // Filter out the files (like index.html) and only look at folders
+                const folders = items.filter(item => item.type === 'dir');
+
+                if (folders.length === 0) {
+                    container.innerHTML = '<p class="loading">No app folders found!</p>';
+                    return;
+                }
+
+                // Loop through each folder and build a link for it automatically
+                folders.forEach(folder => {
+                    const link = document.createElement('a');
+                    
+                    // This creates the clean URL automatically matching the folder name
+                    link.href = `./${folder.name}/`; 
+                    
+                    // Clean up the folder name text for the button display
+                    link.textContent = `🚀 Open ${folder.name}`;
+                    
+                    container.appendChild(link);
+                });
+
+            } catch (error) {
+                console.error('Error fetching repo contents:', error);
+                container.innerHTML = '<p class="loading">Failed to load apps automatically.</p>';
+            }
+        }
+
+        // Run the scanner immediately when the page opens
+        fetchApps();
+    </script>
 </body>
 </html>
