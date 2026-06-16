@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muhammad's Stop Watch</title>
+    
+    <!-- PWA Manifest (Dynamically loaded to keep single-file configuration) -->
+    <link rel="manifest" id="pwa-manifest">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link class="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'><rect width='512' height='512' rx='120' fill='%230b0f19'/><circle cx='256' cy='256' r='180' fill='none' stroke='%238b5cf6' stroke-width='32'/><path d='M256 120v136l96 56' fill='none' stroke='%238b5cf6' stroke-width='32' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                        },
+                        slate: {
+                            950: '#0b0f19',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono-timer {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        /* Glow animations */
+        @keyframes subtle-glow {
+            0%, 100% { box-shadow: 0 0 12px rgba(139, 92, 246, 0.1); }
+            50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.25); }
+        }
+        .running-glow {
+            animation: subtle-glow 3s infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+
+    <!-- Main Workspace Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col space-y-6">
+        
+        <!-- Workspace Name Banner & Quick Actions -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800/60">
+            <div>
+                <!-- Inline Editable Workspace Title -->
+                <div class="group flex items-center space-x-2">
+                    <input type="text" id="workspace-title" value="Muhammad's Stop Watch" class="bg-transparent text-lg sm:text-2xl font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-brand-500 rounded px-1 -ml-1 w-64 sm:w-[420px] cursor-text hover:bg-slate-200/50 dark:hover:bg-slate-800/30 transition-all" title="Click to rename workspace">
+                    <svg class="w-4 h-4 text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Manage multiple stopwatches concurrently with precision syncing.</p>
+            </div>
+
+            <!-- Global Action Controls & Theme Toggle -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Native Install Button (Hidden until installation is available) -->
+                <button id="btn-pwa-install" class="hidden items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-md shadow-brand-600/10 transition-all transform hover:scale-105 active:scale-95">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Install App</span>
+                </button>
+
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-brand-500 dark:hover:text-brand-400 transition-all" title="Toggle Theme">
+                    <!-- Sun Icon (Visible in Dark Mode) -->
+                    <svg id="theme-icon-sun" class="w-4 h-4 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                    </svg>
+                    <!-- Moon Icon (Visible in Light Mode) -->
+                    <svg id="theme-icon-moon" class="w-4 h-4 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+
+                <div class="h-6 w-[1px] bg-slate-300 dark:bg-slate-850 hidden sm:block"></div>
+
+                <button onclick="globalStart()" class="flex-1 sm:flex-initial px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    Start All
+                </button>
+                <button onclick="globalPause()" class="flex-1 sm:flex-initial px-3 py-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    Pause All
+                </button>
+                <button onclick="globalReset()" class="flex-1 sm:flex-initial px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-800 hover:bg-slate-300 dark:hover:bg-slate-800 text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
+                    <!-- Upgraded circular Counter-Clockwise Reset arrow -->
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5" />
+                    </svg>
+                    Reset All
+                </button>
+                <button onclick="clearAllTimers()" class="px-3 py-2 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 hover:bg-red-500/20 text-xs font-semibold transition-all flex items-center justify-center gap-1.5" title="Clear all stopwatches">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Custom Timer Creation Bar -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-md dark:shadow-xl relative overflow-hidden transition-colors duration-300">
+            <!-- Background Accent Ring -->
+            <div class="absolute -right-16 -top-16 w-32 h-32 rounded-full bg-brand-500/5 dark:bg-brand-500/10 blur-2xl"></div>
+            
+            <form id="add-timer-form" onsubmit="createNewTimer(event)" class="relative z-10">
+                <div class="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                    <div class="flex-grow relative">
+                        <label class="block text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 mb-1.5 tracking-wider">New Stopwatch Label</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 dark:text-slate-500">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </span>
+                            <input type="text" id="timer-name-input" placeholder="e.g., Performance Test 1, Dev Sprint, Cooking..." required
+                                   class="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-brand-500 dark:focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 rounded-xl py-3 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all">
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <label class="block text-[10px] uppercase font-mono text-slate-400 dark:text-slate-500 mb-1.5 tracking-wider">Select Theme Accent</label>
+                        <div class="flex items-center space-x-2 bg-slate-100 dark:bg-slate-950 p-2 border border-slate-200 dark:border-slate-800 rounded-xl transition-colors duration-300">
+                            <!-- Theme selector radio circles -->
+                            <label class="relative flex items-center justify-center cursor-pointer">
+                                <input type="radio" name="accent-color" value="brand" checked class="sr-only peer">
+                                <span class="w-6 h-6 rounded-full bg-brand-500 border border-transparent peer-checked:border-slate-400 dark:peer-checked:border-white peer-checked:ring-2 peer-checked:ring-brand-500/50 transition-all block"></span>
+                            </label>
+                            <label class="relative flex items-center justify-center cursor-pointer">
+                                <input type="radio" name="accent-color" value="emerald" class="sr-only peer">
+                                <span class="w-6 h-6 rounded-full bg-emerald-500 border border-transparent peer-checked:border-slate-400 dark:peer-checked:border-white peer-checked:ring-2 peer-checked:ring-emerald-500/50 transition-all block"></span>
+                            </label>
+                            <label class="relative flex items-center justify-center cursor-pointer">
+                                <input type="radio" name="accent-color" value="cyan" class="sr-only peer">
+                                <span class="w-6 h-6 rounded-full bg-cyan-500 border border-transparent peer-checked:border-slate-400 dark:peer-checked:border-white peer-checked:ring-2 peer-checked:ring-cyan-500/50 transition-all block"></span>
+                            </label>
+                            <label class="relative flex items-center justify-center cursor-pointer">
+                                <input type="radio" name="accent-color" value="amber" class="sr-only peer">
+                                <span class="w-6 h-6 rounded-full bg-amber-500 border border-transparent peer-checked:border-slate-400 dark:peer-checked:border-white peer-checked:ring-2 peer-checked:ring-amber-500/50 transition-all block"></span>
+                            </label>
+                            <label class="relative flex items-center justify-center cursor-pointer">
+                                <input type="radio" name="accent-color" value="rose" class="sr-only peer">
+                                <span class="w-6 h-6 rounded-full bg-rose-500 border border-transparent peer-checked:border-slate-400 dark:peer-checked:border-white peer-checked:ring-2 peer-checked:ring-rose-500/50 transition-all block"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="flex items-end pt-5 md:pt-0">
+                        <button type="submit" class="w-full md:w-auto bg-brand-600 hover:bg-brand-500 text-white font-medium text-sm px-6 py-3 rounded-xl transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-500/30 flex items-center justify-center space-x-2 group">
+                            <span>Add Stopwatch</span>
+                            <svg class="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" /></svg>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Stopwatches Container -->
+        <div id="timers-list" class="space-y-4">
+            <!-- Dynamically populated stopwatch rows will inject here -->
+            
+            <!-- Empty State Illustration -->
+            <div id="empty-state" class="flex flex-col items-center justify-center py-20 px-4 text-center border-2 border-dashed border-slate-300 dark:border-slate-800/80 rounded-2xl bg-white dark:bg-slate-900/20 shadow-sm transition-colors duration-300">
+                <div class="h-16 w-16 bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 rounded-2xl flex items-center justify-center text-slate-400 dark:text-slate-500 mb-4">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-slate-900 dark:text-white mb-1">No stopwatches added yet</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm">Create a stopwatch above to begin tracking your tasks concurrently.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Hidden Video and Canvas elements for universal PiP fallback support -->
+    <video id="pip-fallback-video" autoplay muted class="hidden"></video>
+    <canvas id="pip-fallback-canvas" width="400" height="150" class="hidden"></canvas>
+
+    <!-- Custom Notification/Alert Toast (In-frame friendly) -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- App State and Controller Logic -->
+    <script>
+        // Stopwatch array to hold state
+        let timers = [];
+        let animationFrameId = null;
+        let deferredPrompt; // PWA installation listener storage
+
+        // Set to store IDs of open adjustment panels so they survive list refreshes
+        let openAdjustPanels = new Set();
+
+        // Picture in Picture Tracking state
+        let activePipTimerId = null;
+        let activePipWindow = null;       // Used for Document PiP API
+        let fallbackPipActive = false;   // Used for Video PiP Canvas fallback
+        const pipVideo = document.getElementById('pip-fallback-video');
+        const pipCanvas = document.getElementById('pip-fallback-canvas');
+        const pipCtx = pipCanvas.getContext('2d');
+
+        // Sound effect (Synthesis fallback for clicks/tick sounds)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playChime(type) {
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                if (type === 'tick') {
+                    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.05);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.05);
+                } else if (type === 'lap') {
+                    osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } else if (type === 'reset') {
+                    osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.2);
+                }
+            } catch (e) {
+                // Audio Context autoplays or is restricted in some iframe contexts
+            }
+        }
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('chronos_theme', 'light');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('chronos_theme', 'dark');
+            }
+            // Update document PiP window if open
+            if (activePipWindow) {
+                syncPipTheme();
+            }
+        }
+
+        // Syncs the active PiP window with parent dark/light state
+        function syncPipTheme() {
+            if (!activePipWindow) return;
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isDark) {
+                activePipWindow.document.documentElement.classList.add('dark');
+            } else {
+                activePipWindow.document.documentElement.classList.remove('dark');
+            }
+        }
+
+        // Load & Save State Helpers
+        function saveTimersToLocalStorage() {
+            localStorage.setItem('chronos_timers_data', JSON.stringify(timers));
+        }
+
+        // Build and inject PWA manifest dynamically
+        function setupDynamicManifest() {
+            const currentTitle = document.getElementById('workspace-title')?.value || "Muhammad's Stop Watch";
+            const manifestData = {
+                "name": currentTitle,
+                "short_name": "Stopwatch",
+                "start_url": ".",
+                "display": "standalone",
+                "background_color": "#0b0f19",
+                "theme_color": "#8b5cf6",
+                "icons": [
+                    {
+                        "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' width='512' height='512'><rect width='512' height='512' rx='120' fill='%230b0f19'/><circle cx='256' cy='256' r='180' fill='none' stroke='%238b5cf6' stroke-width='32'/><path d='M256 120v136l96 56' fill='none' stroke='%238b5cf6' stroke-width='32' stroke-linecap='round' stroke-linejoin='round'/></svg>",
+                        "sizes": "512x512",
+                        "type": "image/svg+xml",
+                        "purpose": "any maskable"
+                    }
+                ]
+            };
+
+            const manifestString = JSON.stringify(manifestData);
+            const blob = new Blob([manifestString], { type: 'application/json' });
+            const manifestURL = URL.createObjectURL(blob);
+            document.getElementById('pwa-manifest').setAttribute('href', manifestURL);
+        }
+
+        function loadTimersFromLocalStorage() {
+            const saved = localStorage.getItem('chronos_timers_data');
+            if (saved) {
+                try {
+                    timers = JSON.parse(saved);
+                } catch (e) {
+                    timers = [];
+                }
+            }
+        }
+
+        // Service Worker Setup
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('Service Worker registered successfully', reg.scope);
+                    })
+                    .catch(err => {
+                        console.log('Service Worker registration skipped:', err);
+                    });
+            }
+        }
+
+        // Initialize App
+        window.addEventListener('load', () => {
+            const savedTitle = localStorage.getItem('chronos_workspace_title');
+            const titleInput = document.getElementById('workspace-title');
+            
+            if (savedTitle) {
+                titleInput.value = savedTitle;
+                document.title = savedTitle;
+            } else {
+                titleInput.value = "Muhammad's Stop Watch";
+                document.title = "Muhammad's Stop Watch";
+            }
+
+            setupDynamicManifest();
+            registerServiceWorker();
+
+            const savedTheme = localStorage.getItem('chronos_theme');
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+
+            // Sync document.title and PWA manifest on every keystroke
+            titleInput.addEventListener('input', (e) => {
+                const newTitle = e.target.value || "Muhammad's Stop Watch";
+                localStorage.setItem('chronos_workspace_title', newTitle);
+                document.title = newTitle;
+                setupDynamicManifest(); // Dynamically updates the installable PWA name
+            });
+
+            loadTimersFromLocalStorage();
+            renderTimers();
+            startLoop();
+        });
+
+        // Listen for Native PWA Installation Opportunities
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('btn-pwa-install');
+            if (installBtn) {
+                installBtn.style.display = 'flex';
+                installBtn.addEventListener('click', () => {
+                    installBtn.style.display = 'none';
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            showToast('Thank you for installing Chronos!', 'success');
+                        } else {
+                            installBtn.style.display = 'flex';
+                        }
+                        deferredPrompt = null;
+                    });
+                });
+            }
+        });
+
+        // Create a new stopwatch entry
+        function createNewTimer(e) {
+            e.preventDefault();
+            const input = document.getElementById('timer-name-input');
+            const name = input.value.trim() || `Stopwatch ${timers.length + 1}`;
+            
+            const checkedColorRadio = document.querySelector('input[name="accent-color"]:checked');
+            const accentColor = checkedColorRadio ? checkedColorRadio.value : 'brand';
+
+            const newTimer = {
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                name: name,
+                accent: accentColor,
+                elapsedTime: 0,
+                startTime: null,
+                isRunning: false,
+                laps: []
+            };
+
+            timers.push(newTimer);
+            input.value = '';
+            
+            saveTimersToLocalStorage();
+            showToast(`"${name}" created successfully.`, 'success');
+            renderTimers();
+        }
+
+        // Main animation-frame high performance loop
+        function startLoop() {
+            function update() {
+                const now = Date.now();
+                timers.forEach(timer => {
+                    let totalElapsed = timer.elapsedTime;
+                    if (timer.isRunning && timer.startTime) {
+                        const delta = now - timer.startTime;
+                        totalElapsed += delta;
+                    }
+
+                    // Update main view timer display
+                    updateTimerDisplay(timer.id, totalElapsed);
+
+                    // Update Document PiP window timer display if open
+                    if (activePipTimerId === timer.id && activePipWindow) {
+                        updatePipTimerDisplay(totalElapsed);
+                        updatePipControlStates(timer.isRunning);
+                    }
+                });
+
+                // Update canvas fallback if standard PiP is active
+                if (fallbackPipActive && activePipTimerId) {
+                    drawFallbackCanvas();
+                }
+
+                animationFrameId = requestAnimationFrame(update);
+            }
+            animationFrameId = requestAnimationFrame(update);
+        }
+
+        // Get styled colors according to chosen palette
+        function getColorClasses(accent) {
+            const themes = {
+                brand: {
+                    border: 'border-brand-500/20 dark:border-brand-500/20',
+                    borderActive: 'border-brand-500/60 dark:border-brand-500/70',
+                    bg: 'bg-brand-50/50 dark:bg-brand-950/20',
+                    bgActive: 'bg-brand-100/70 dark:bg-brand-950/40',
+                    text: 'text-brand-600 dark:text-brand-400',
+                    hex: '#8b5cf6',
+                    glow: 'shadow-brand-500/10'
+                },
+                emerald: {
+                    border: 'border-emerald-500/20 dark:border-emerald-500/20',
+                    borderActive: 'border-emerald-500/60 dark:border-emerald-500/70',
+                    bg: 'bg-emerald-50/50 dark:bg-emerald-950/20',
+                    bgActive: 'bg-emerald-100/70 dark:bg-emerald-950/40',
+                    text: 'text-emerald-600 dark:text-emerald-400',
+                    hex: '#10b981',
+                    glow: 'shadow-emerald-500/10'
+                },
+                cyan: {
+                    border: 'border-cyan-500/20 dark:border-cyan-500/20',
+                    borderActive: 'border-cyan-500/60 dark:border-cyan-500/70',
+                    bg: 'bg-cyan-50/50 dark:bg-cyan-950/20',
+                    bgActive: 'bg-cyan-100/70 dark:bg-cyan-950/40',
+                    text: 'text-cyan-600 dark:text-cyan-400',
+                    hex: '#06b6d4',
+                    glow: 'shadow-cyan-500/10'
+                },
+                amber: {
+                    border: 'border-amber-500/20 dark:border-amber-500/20',
+                    borderActive: 'border-amber-500/60 dark:border-amber-500/70',
+                    bg: 'bg-amber-50/50 dark:bg-amber-950/20',
+                    bgActive: 'bg-amber-100/70 dark:bg-amber-950/40',
+                    text: 'text-amber-600 dark:text-amber-400',
+                    hex: '#f59e0b',
+                    glow: 'shadow-amber-500/10'
+                },
+                rose: {
+                    border: 'border-rose-500/20 dark:border-rose-500/20',
+                    borderActive: 'border-rose-500/60 dark:border-rose-500/70',
+                    bg: 'bg-rose-50/50 dark:bg-rose-950/20',
+                    bgActive: 'bg-rose-100/70 dark:bg-rose-950/40',
+                    text: 'text-rose-600 dark:text-rose-400',
+                    hex: '#f43f5e',
+                    glow: 'shadow-rose-500/10'
+                }
+            };
+            return themes[accent] || themes.brand;
+        }
+
+        // Render function (Builds standard UI rows)
+        function renderTimers() {
+            const listContainer = document.getElementById('timers-list');
+            const emptyState = document.getElementById('empty-state');
+
+            if (timers.length === 0) {
+                emptyState.classList.remove('hidden');
+                const timerNodes = listContainer.querySelectorAll('.stopwatch-row');
+                timerNodes.forEach(node => node.remove());
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            timers.forEach((timer, index) => {
+                let existingRow = document.getElementById(`row-${timer.id}`);
+                const theme = getColorClasses(timer.accent);
+                const isAdjustPanelOpen = openAdjustPanels.has(timer.id);
+                
+                if (!existingRow) {
+                    existingRow = document.createElement('div');
+                    existingRow.id = `row-${timer.id}`;
+                    existingRow.className = `stopwatch-row border border-slate-200 ${theme.border} rounded-2xl p-4 sm:p-5 flex flex-col transition-all duration-300 relative overflow-hidden shadow-sm ${timer.isRunning ? 'running-glow' : ''}`;
+                    
+                    existingRow.innerHTML = `
+                        <!-- Stopwatch Main Control Row -->
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 z-10 relative">
+                            <!-- Left: Label Metadata and Edit Field -->
+                            <div class="flex items-center space-x-3 flex-1 min-w-[250px]">
+                                <span class="w-3.5 h-3.5 rounded-full ${timer.isRunning ? 'bg-emerald-450 dark:bg-emerald-400 animate-pulse' : 'bg-slate-400 dark:bg-slate-600'} flex-shrink-0" id="status-dot-${timer.id}"></span>
+                                <div class="flex-grow">
+                                    <input type="text" value="${timer.name}" 
+                                           onchange="renameTimer('${timer.id}', this.value)"
+                                           onkeydown="if(event.key === 'Enter') this.blur();"
+                                           class="bg-transparent text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-0 rounded w-full cursor-text hover:bg-slate-200/50 dark:hover:bg-slate-800/30 transition-all"
+                                           title="Click to rename stopwatch">
+                                </div>
+                            </div>
+
+                            <!-- Center: The Precise Digital Clock Display -->
+                            <div class="flex-shrink-0 flex justify-center lg:justify-end lg:pr-10">
+                                <div class="text-3xl sm:text-4xl lg:text-4xl font-mono-timer font-bold tracking-tight text-slate-800 dark:text-white select-all select-none" id="display-${timer.id}">
+                                    00:00:00.<span class="text-xl sm:text-2xl text-slate-400 dark:text-slate-500 font-medium">00</span>
+                                </div>
+                            </div>
+
+                            <!-- Right: Functional Controls Group -->
+                            <div class="flex items-center justify-center lg:justify-end gap-2 border-t border-slate-200 dark:border-slate-800 lg:border-t-0 pt-3 lg:pt-0">
+                                <!-- PIP Pop Out Button -->
+                                <button onclick="togglePictureInPicture('${timer.id}')" id="btn-pip-${timer.id}" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400" title="Pop Out Timer (Floating Window)">
+                                    <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-2M4 14h6m0 0v6m0-6-6 6" />
+                                    </svg>
+                                </button>
+
+                                <!-- NEW: Add/Subtract Time Controls Toggle Button -->
+                                <button onclick="toggleAdjustPanel('${timer.id}')" id="btn-adjust-${timer.id}" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400" title="Add / Remove Time">
+                                    <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </button>
+
+                                <!-- Trigger Play / Pause Toggles -->
+                                <button onclick="toggleTimer('${timer.id}')" id="btn-toggle-${timer.id}" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-emerald-500/10 dark:bg-emerald-500/15 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400" title="Start/Pause">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" id="icon-toggle-${timer.id}"><path d="M8 5v14l11-7z"/></svg>
+                                </button>
+                                
+                                <!-- Flag Lap Time -->
+                                <button onclick="recordLap('${timer.id}')" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400" title="Split Lap">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                </button>
+
+                                <!-- Upgraded Circular Counter-Clockwise Reset Stopwatch Button -->
+                                <button onclick="resetTimer('${timer.id}')" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-slate-500/10 hover:bg-slate-500/20 text-slate-600 dark:text-slate-300 border border-slate-500/10 dark:border-slate-700/30" title="Reset Stopwatch">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3v5h5" />
+                                    </svg>
+                                </button>
+
+                                <!-- Destructive Stop & Trash -->
+                                <button onclick="deleteTimer('${timer.id}')" class="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400" title="Delete">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- NEW: Sliding Add / Remove Time Configuration Panel -->
+                        <div id="adjust-panel-${timer.id}" class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 ${isAdjustPanelOpen ? '' : 'hidden'} transition-all duration-300 z-10 relative">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 mr-2">Quick Adjustment:</span>
+                                <button onclick="adjustTimerTime('${timer.id}', -600000)" class="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs font-semibold text-red-600 dark:text-red-400 transition-colors">-10m</button>
+                                <button onclick="adjustTimerTime('${timer.id}', -60000)" class="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-xs font-semibold text-red-600 dark:text-red-400 transition-colors">-1m</button>
+                                <button onclick="adjustTimerTime('${timer.id}', 60000)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-colors">+1m</button>
+                                <button onclick="adjustTimerTime('${timer.id}', 600000)" class="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-colors">+10m</button>
+                                
+                                <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-800 mx-2"></div>
+                                
+                                <span class="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400 mr-1">Custom:</span>
+                                <div class="flex items-center space-x-1.5">
+                                    <input type="number" id="custom-adjust-val-${timer.id}" placeholder="Min" min="1" step="any"
+                                           class="w-16 px-2 py-1 text-xs bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-500 text-slate-800 dark:text-white transition-all">
+                                    <button onclick="applyCustomAdjustment('${timer.id}', 'add')" class="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-xs font-medium text-white transition-colors">Add</button>
+                                    <button onclick="applyCustomAdjustment('${timer.id}', 'sub')" class="px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-850 hover:bg-slate-350 dark:hover:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors">Sub</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lap History Section (Expandable) -->
+                        <div id="laps-container-${timer.id}" class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800/80 hidden transition-all duration-300">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-slate-400">Recorded Splits / Laps</h4>
+                                <button onclick="clearLaps('${timer.id}')" class="text-[10px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">Clear Laps</button>
+                            </div>
+                            <div id="laps-list-${timer.id}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto pr-1"></div>
+                        </div>
+                    `;
+                    listContainer.appendChild(existingRow);
+                }
+
+                const statusDot = document.getElementById(`status-dot-${timer.id}`);
+                const toggleBtn = document.getElementById(`btn-toggle-${timer.id}`);
+                const toggleIcon = document.getElementById(`icon-toggle-${timer.id}`);
+                const pipBtn = document.getElementById(`btn-pip-${timer.id}`);
+                const adjustBtn = document.getElementById(`btn-adjust-${timer.id}`);
+
+                // Visual treatment for active PIP mode on the row
+                if (activePipTimerId === timer.id) {
+                    pipBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500 text-white shadow-lg shadow-brand-500/20`;
+                } else {
+                    pipBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400`;
+                }
+
+                // Visual treatment for open adjustment panel
+                if (isAdjustPanelOpen) {
+                    adjustBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-600 text-white shadow-md shadow-brand-600/20`;
+                } else {
+                    adjustBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400`;
+                }
+
+                if (timer.isRunning) {
+                    existingRow.className = `stopwatch-row ${theme.bgActive} border border-slate-200 ${theme.borderActive} rounded-2xl p-4 sm:p-5 flex flex-col transition-all duration-300 relative overflow-hidden running-glow`;
+                    statusDot.className = `w-3.5 h-3.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse flex-shrink-0`;
+                    toggleBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 dark:hover:bg-amber-500/25 text-amber-600 dark:text-amber-400`;
+                    toggleIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+                } else {
+                    existingRow.className = `stopwatch-row ${theme.bg} border border-slate-200 ${theme.border} rounded-2xl p-4 sm:p-5 flex flex-col transition-all duration-300 relative overflow-hidden`;
+                    statusDot.className = `w-3.5 h-3.5 rounded-full bg-slate-400 dark:bg-slate-600 flex-shrink-0`;
+                    toggleBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-emerald-500/10 dark:bg-emerald-500/15 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400`;
+                    toggleIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+                }
+
+                let displayElapsedTime = timer.elapsedTime;
+                if (timer.isRunning && timer.startTime) {
+                    displayElapsedTime += (Date.now() - timer.startTime);
+                }
+                updateTimerDisplay(timer.id, displayElapsedTime);
+                renderLapsUI(timer);
+            });
+
+            const renderedRows = listContainer.querySelectorAll('.stopwatch-row');
+            renderedRows.forEach(row => {
+                const id = row.id.replace('row-', '');
+                if (!timers.some(t => t.id === id)) {
+                    row.remove();
+                }
+            });
+        }
+
+        // Inline renaming
+        function renameTimer(id, newName) {
+            const timer = timers.find(t => t.id === id);
+            if (timer) {
+                const oldName = timer.name;
+                timer.name = newName.trim() || oldName;
+                saveTimersToLocalStorage();
+                showToast(`Renamed to "${timer.name}"`, 'success');
+            }
+        }
+
+        // Precise Milliseconds formatting helper
+        function formatTimeComponents(timeMs) {
+            let totalSeconds = Math.floor(timeMs / 1000);
+            let hours = Math.floor(totalSeconds / 3600);
+            let minutes = Math.floor((totalSeconds % 3600) / 60);
+            let seconds = totalSeconds % 60;
+            let centiseconds = Math.floor((timeMs % 1000) / 10);
+
+            return {
+                hours: hours.toString().padStart(2, '0'),
+                minutes: minutes.toString().padStart(2, '0'),
+                seconds: seconds.toString().padStart(2, '0'),
+                centiseconds: centiseconds.toString().padStart(2, '0')
+            };
+        }
+
+        // In-loop efficient text display updater
+        function updateTimerDisplay(id, currentElapsed) {
+            const displayEl = document.getElementById(`display-${id}`);
+            if (!displayEl) return;
+
+            const time = formatTimeComponents(currentElapsed);
+            displayEl.innerHTML = `${time.hours}:${time.minutes}:${time.seconds}.<span class="text-xl sm:text-2xl text-slate-400 dark:text-slate-500 font-medium">${time.centiseconds}</span>`;
+        }
+
+        // Start / Pause state changer
+        function toggleTimer(id) {
+            const timer = timers.find(t => t.id === id);
+            if (!timer) return;
+
+            playChime('tick');
+
+            if (timer.isRunning) {
+                const sessionDelta = Date.now() - timer.startTime;
+                timer.elapsedTime += sessionDelta;
+                timer.startTime = null;
+                timer.isRunning = false;
+            } else {
+                timer.startTime = Date.now();
+                timer.isRunning = true;
+            }
+
+            saveTimersToLocalStorage();
+            renderTimers();
+        }
+
+        // Record current split lap
+        function recordLap(id) {
+            const timer = timers.find(t => t.id === id);
+            if (!timer) return;
+
+            playChime('lap');
+
+            let absoluteNow = timer.elapsedTime;
+            if (timer.isRunning && timer.startTime) {
+                absoluteNow += (Date.now() - timer.startTime);
+            }
+
+            let previousLapsSum = timer.laps.reduce((acc, curr) => acc + curr.rawTime, 0);
+            let relativeSplit = absoluteNow - previousLapsSum;
+
+            timer.laps.push({
+                lapNum: timer.laps.length + 1,
+                rawTime: relativeSplit,
+                absoluteTime: absoluteNow
+            });
+
+            saveTimersToLocalStorage();
+            showToast(`Lap ${timer.laps.length} logged for "${timer.name}"`, 'success');
+            renderTimers();
+        }
+
+        // UI Builder for Splitting Laps
+        function renderLapsUI(timer) {
+            const container = document.getElementById(`laps-container-${timer.id}`);
+            const list = document.getElementById(`laps-list-${timer.id}`);
+            
+            if (!container || !list) return;
+
+            if (timer.laps.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            list.innerHTML = '';
+
+            [...timer.laps].reverse().forEach(lap => {
+                const formattedRel = formatTimeComponents(lap.rawTime);
+                const formattedAbs = formatTimeComponents(lap.absoluteTime);
+
+                const item = document.createElement('div');
+                item.className = 'bg-slate-100 dark:bg-slate-950 p-2 border border-slate-200 dark:border-slate-850 rounded-lg flex justify-between items-center text-[11px] font-mono transition-colors duration-300';
+                item.innerHTML = `
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-400 dark:text-slate-500 font-bold">L${lap.lapNum}</span>
+                        <span class="text-slate-900 dark:text-white">${formattedRel.hours}:${formattedRel.minutes}:${formattedRel.seconds}.${formattedRel.centiseconds}</span>
+                    </div>
+                    <span class="text-slate-400 dark:text-slate-500 text-[10px]">${formattedAbs.minutes}:${formattedAbs.seconds}</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // Reset timer clean
+        function resetTimer(id) {
+            const timer = timers.find(t => t.id === id);
+            if (!timer) return;
+
+            playChime('reset');
+
+            timer.isRunning = false;
+            timer.startTime = null;
+            timer.elapsedTime = 0;
+            timer.laps = [];
+
+            saveTimersToLocalStorage();
+            renderTimers();
+        }
+
+        // Destroy single stopwatch
+        function deleteTimer(id) {
+            const timerIndex = timers.findIndex(t => t.id === id);
+            if (timerIndex !== -1) {
+                // If the deleted timer was running in PiP mode, close PiP first
+                if (activePipTimerId === id) {
+                    closePictureInPicture();
+                }
+                const name = timers[timerIndex].name;
+                timers.splice(timerIndex, 1);
+                saveTimersToLocalStorage();
+                showToast(`"${name}" removed`, 'info');
+                renderTimers();
+            }
+        }
+
+        // Clear lap entries exclusively
+        function clearLaps(id) {
+            const timer = timers.find(t => t.id === id);
+            if (timer) {
+                timer.laps = [];
+                saveTimersToLocalStorage();
+                renderTimers();
+            }
+        }
+
+        // Toggle state of adjustment sub-panels
+        function toggleAdjustPanel(id) {
+            const panel = document.getElementById(`adjust-panel-${id}`);
+            const adjustBtn = document.getElementById(`btn-adjust-${id}`);
+            if (!panel || !adjustBtn) return;
+
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                openAdjustPanels.add(id);
+                adjustBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-600 text-white shadow-md shadow-brand-600/20`;
+            } else {
+                panel.classList.add('hidden');
+                openAdjustPanels.delete(id);
+                adjustBtn.className = `w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-brand-500/10 hover:bg-brand-500/20 text-brand-600 dark:text-brand-400`;
+            }
+        }
+
+        // Modify running or stopped stopwatch base times dynamically
+        function adjustTimerTime(id, adjustmentMs) {
+            const timer = timers.find(t => t.id === id);
+            if (!timer) return;
+
+            playChime('tick');
+
+            // Calculate active runtime total
+            let currentTotal = timer.elapsedTime;
+            if (timer.isRunning && timer.startTime) {
+                currentTotal += (Date.now() - timer.startTime);
+            }
+
+            // Apply modification
+            let newTotal = currentTotal + adjustmentMs;
+            if (newTotal < 0) {
+                newTotal = 0; // Guard against negative values
+            }
+
+            // Sync base values back into local scope
+            if (timer.isRunning && timer.startTime) {
+                timer.elapsedTime = newTotal - (Date.now() - timer.startTime);
+            } else {
+                timer.elapsedTime = newTotal;
+            }
+
+            saveTimersToLocalStorage();
+            updateTimerDisplay(timer.id, newTotal);
+
+            const labelStr = Math.abs(adjustmentMs / 60000).toFixed(1);
+            const actionStr = adjustmentMs > 0 ? "Added" : "Subtracted";
+            showToast(`${actionStr} ${labelStr} min to "${timer.name}"`, 'success');
+        }
+
+        // Extract custom form values to trigger updates
+        function applyCustomAdjustment(id, action) {
+            const inputField = document.getElementById(`custom-adjust-val-${id}`);
+            if (!inputField) return;
+
+            const inputMin = parseFloat(inputField.value);
+            if (isNaN(inputMin) || inputMin <= 0) {
+                showToast("Please enter a valid number of minutes.", "info");
+                return;
+            }
+
+            const adjustmentMs = inputMin * 60 * 1000 * (action === 'add' ? 1 : -1);
+            adjustTimerTime(id, adjustmentMs);
+            inputField.value = ''; // Clean input
+        }
+
+        // --- Picture-In-Picture Control Panel Module ---
+
+        async function togglePictureInPicture(id) {
+            const timer = timers.find(t => t.id === id);
+            if (!timer) return;
+
+            // If this timer is already running in PiP mode, close it
+            if (activePipTimerId === id) {
+                closePictureInPicture();
+                return;
+            }
+
+            // Close existing PiP if another timer was floating
+            if (activePipTimerId) {
+                closePictureInPicture();
+            }
+
+            activePipTimerId = id;
+
+            // Check for modern Document Picture-in-Picture support (Chrome/Edge)
+            if ('documentPictureInPicture' in window) {
+                try {
+                    // Launch native Document PiP window
+                    activePipWindow = await documentPictureInPicture.requestWindow({
+                        width: 380,
+                        height: 180,
+                    });
+
+                    // Port current Tailwind and font CSS rules over to the isolated PiP document context
+                    const allStyles = document.querySelectorAll('style, link[rel="stylesheet"]');
+                    allStyles.forEach((style) => {
+                        activePipWindow.document.head.appendChild(style.cloneNode(true));
+                    });
+
+                    // Sync starting dark/light mode classes
+                    syncPipTheme();
+
+                    const theme = getColorClasses(timer.accent);
+
+                    // Build PiP custom interface markup
+                    activePipWindow.document.body.className = "h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 flex flex-col justify-between select-none overflow-hidden";
+                    activePipWindow.document.body.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <span class="w-2.5 h-2.5 rounded-full ${timer.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}" id="pip-status-dot"></span>
+                            <h1 class="text-sm font-bold truncate">${timer.name}</h1>
+                        </div>
+                        <div class="text-3xl font-mono-timer font-bold text-center tracking-tight text-slate-800 dark:text-white" id="pip-display">
+                            00:00:00.00
+                        </div>
+                        <div class="flex gap-2 justify-center mt-2">
+                            <button id="pip-btn-toggle" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition-colors">
+                                ${timer.isRunning ? 'Pause' : 'Start'}
+                            </button>
+                            <button id="pip-btn-reset" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-500/15 hover:bg-slate-500/25 text-slate-600 dark:text-slate-300 transition-colors">
+                                Reset
+                            </button>
+                        </div>
+                    `;
+
+                    // Add Event Listeners inside the floating window to trigger the parent context states
+                    activePipWindow.document.getElementById('pip-btn-toggle').addEventListener('click', () => {
+                        toggleTimer(id);
+                    });
+                    activePipWindow.document.getElementById('pip-btn-reset').addEventListener('click', () => {
+                        resetTimer(id);
+                    });
+
+                    // Trigger clean up state if the user closes floating window via standard native windows "X" control
+                    activePipWindow.addEventListener('pagehide', () => {
+                        activePipTimerId = null;
+                        activePipWindow = null;
+                        renderTimers();
+                    });
+
+                    renderTimers();
+                    return;
+                } catch (err) {
+                    console.warn('Document PiP window request failed, trying standard Video PiP fallback:', err);
+                }
+            }
+
+            // Fallback for Firefox/Safari using canvas-to-video projection inside traditional Video Picture in Picture
+            startFallbackVideoPip();
+        }
+
+        // Dynamic update loop updates timer text inside the floating Document PiP window
+        function updatePipTimerDisplay(currentElapsed) {
+            if (!activePipWindow) return;
+            const displayEl = activePipWindow.document.getElementById('pip-display');
+            if (!displayEl) return;
+
+            const time = formatTimeComponents(currentElapsed);
+            displayEl.innerHTML = `${time.hours}:${time.minutes}:${time.seconds}.<span class="text-lg text-slate-400 dark:text-slate-500 font-medium">${time.centiseconds}</span>`;
+        }
+
+        // Dynamically updates button texts inside floating Document PiP window
+        function updatePipControlStates(isRunning) {
+            if (!activePipWindow) return;
+            const toggleBtn = activePipWindow.document.getElementById('pip-btn-toggle');
+            const statusDot = activePipWindow.document.getElementById('pip-status-dot');
+            if (toggleBtn) {
+                toggleBtn.innerText = isRunning ? 'Pause' : 'Start';
+                if (isRunning) {
+                    toggleBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-600 dark:text-amber-400 transition-colors";
+                } else {
+                    toggleBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition-colors";
+                }
+            }
+            if (statusDot) {
+                statusDot.className = `w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`;
+            }
+        }
+
+        // Fallback Picture-in-Picture mechanism rendering frames directly to Canvas stream inside a hidden native video pipeline
+        async function startFallbackVideoPip() {
+            try {
+                // Pipe canvas rendering directly into the video stream
+                const stream = pipCanvas.captureStream(30); // 30 Frames per second projection rate
+                pipVideo.srcObject = stream;
+                
+                // Wait for stream to be ready before firing native picture-in-picture prompt
+                await new Promise((resolve) => {
+                    pipVideo.onloadedmetadata = () => {
+                        pipVideo.play();
+                        resolve();
+                    };
+                });
+
+                await pipVideo.requestPictureInPicture();
+                fallbackPipActive = true;
+
+                // Listen for native exit event
+                pipVideo.addEventListener('leavepictureinpicture', () => {
+                    activePipTimerId = null;
+                    fallbackPipActive = false;
+                    renderTimers();
+                });
+
+                renderTimers();
+            } catch (err) {
+                showToast('Floating timers are not supported on this browser version.', 'info');
+                activePipTimerId = null;
+                renderTimers();
+            }
+        }
+
+        // Canvas Painter for the traditional Video PiP fallback
+        function drawFallbackCanvas() {
+            const timer = timers.find(t => t.id === activePipTimerId);
+            if (!timer) return;
+
+            let elapsed = timer.elapsedTime;
+            if (timer.isRunning && timer.startTime) {
+                elapsed += (Date.now() - timer.startTime);
+            }
+
+            const time = formatTimeComponents(elapsed);
+            const theme = getColorClasses(timer.accent);
+            const isDark = document.documentElement.classList.contains('dark');
+
+            // Draw Background Canvas Box
+            pipCtx.fillStyle = isDark ? '#0b0f19' : '#f8fafc';
+            pipCtx.fillRect(0, 0, pipCanvas.width, pipCanvas.height);
+
+            // Draw Stopwatch Label Title
+            pipCtx.font = 'bold 20px Inter, sans-serif';
+            pipCtx.fillStyle = isDark ? '#f8fafc' : '#0f172a';
+            pipCtx.fillText(timer.name, 20, 40);
+
+            // Draw Precise Numeric Timer Text String
+            pipCtx.font = 'bold 42px JetBrains Mono, monospace';
+            pipCtx.fillStyle = isDark ? '#ffffff' : '#0f172a';
+            const displayStr = `${time.hours}:${time.minutes}:${time.seconds}.${time.centiseconds}`;
+            pipCtx.fillText(displayStr, 20, 100);
+
+            // Paint Accent Underline representing active stopwatch theme color
+            pipCtx.fillStyle = theme.hex;
+            pipCtx.fillRect(0, pipCanvas.height - 8, pipCanvas.width, 8);
+        }
+
+        // Close whatever active PiP window is currently running
+        function closePictureInPicture() {
+            if (activePipWindow) {
+                activePipWindow.close();
+                activePipWindow = null;
+            }
+            if (document.pictureInPictureElement) {
+                document.exitPictureInPicture();
+            }
+            activePipTimerId = null;
+            fallbackPipActive = false;
+            renderTimers();
+        }
+
+        // --- Global Control Group Operators ---
+
+        function globalStart() {
+            playChime('tick');
+            const now = Date.now();
+            timers.forEach(timer => {
+                if (!timer.isRunning) {
+                    timer.startTime = now;
+                    timer.isRunning = true;
+                }
+            });
+            saveTimersToLocalStorage();
+            renderTimers();
+        }
+
+        function globalPause() {
+            playChime('tick');
+            const now = Date.now();
+            timers.forEach(timer => {
+                if (timer.isRunning && timer.startTime) {
+                    timer.elapsedTime += (now - timer.startTime);
+                    timer.startTime = null;
+                    timer.isRunning = false;
+                }
+            });
+            saveTimersToLocalStorage();
+            renderTimers();
+        }
+
+        function globalReset() {
+            playChime('reset');
+            timers.forEach(timer => {
+                timer.isRunning = false;
+                timer.startTime = null;
+                timer.elapsedTime = 0;
+                timer.laps = [];
+            });
+            saveTimersToLocalStorage();
+            renderTimers();
+        }
+
+        function clearAllTimers() {
+            if (timers.length === 0) return;
+            playChime('reset');
+            timers = [];
+            openAdjustPanels.clear(); // Empty adjust panels track list
+            saveTimersToLocalStorage();
+            showToast("Workspace cleared.", "info");
+            renderTimers();
+        }
+
+        // Toast Notification System
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded-xl shadow-lg dark:shadow-xl flex items-center space-x-2 border transition-all duration-300 transform translate-y-2 opacity-0 text-xs pointer-events-auto ${
+                type === 'success' 
+                ? 'bg-white dark:bg-slate-900 border-brand-500/20 dark:border-brand-500/30 text-slate-800 dark:text-white' 
+                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-850 text-slate-600 dark:text-slate-300'
+            }`;
+            
+            const iconSvg = type === 'success' 
+                ? `<svg class="w-4 h-4 text-brand-600 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`
+                : `<svg class="w-4 h-4 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+
+            toast.innerHTML = `${iconSvg} <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

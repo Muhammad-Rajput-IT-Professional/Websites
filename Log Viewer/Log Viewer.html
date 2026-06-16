@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal Log Viewer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08111f;
+      --panel: rgba(10, 20, 35, 0.86);
+      --panel-2: rgba(14, 29, 48, 0.92);
+      --line: rgba(144, 177, 214, 0.22);
+      --text: #e8f0fb;
+      --muted: #97acc6;
+      --accent: #78d0ff;
+      --accent-2: #7cffc8;
+      --warn: #ffcf66;
+      --danger: #ff7d7d;
+      --raw-text: #dbe8f7;
+      --header-row-bg: #091524;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      --radius: 18px;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(120, 208, 255, 0.18), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(124, 255, 200, 0.13), transparent 24%),
+        linear-gradient(180deg, #07111d 0%, #04070d 100%);
+      color: var(--text);
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+      min-height: 100vh;
+      padding: 12px;
+    }
+
+    header, .controls, .viewer, .status {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    header {
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .titleline {
+      color: var(--muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .credit {
+      color: var(--muted);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+
+    .theme-toggle {
+      width: auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 1rem;
+      line-height: 1;
+      min-width: 2rem;
+    }
+
+    .controls {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .group label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, button, textarea {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 11px 12px;
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus, textarea:focus {
+      border-color: rgba(120, 208, 255, 0.65);
+      box-shadow: 0 0 0 3px rgba(120, 208, 255, 0.12);
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: linear-gradient(180deg, rgba(120, 208, 255, 0.2), rgba(120, 208, 255, 0.08));
+    }
+
+    button:hover { border-color: rgba(120, 208, 255, 0.55); }
+
+    .toggles {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      grid-column: 1 / -1;
+    }
+
+    .manual-panel {
+      display: none;
+      grid-column: 1 / -1;
+      gap: 10px;
+      border-top: 1px solid rgba(144, 177, 214, 0.12);
+      padding-top: 12px;
+    }
+
+    .manual-panel.active {
+      display: grid;
+    }
+
+    .manual-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .manual-list {
+      max-height: 380px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      padding: 8px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.9rem;
+    }
+
+    .manual-item {
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .manual-item:hover {
+      background: rgba(120, 208, 255, 0.08);
+    }
+
+    .manual-item.active {
+      border-color: rgba(124, 255, 200, 0.4);
+      background: rgba(124, 255, 200, 0.08);
+    }
+
+    .toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      user-select: none;
+    }
+
+    .toggle input { width: auto; }
+
+    .viewer {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      overflow: hidden;
+    }
+
+    .viewer-head {
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+    }
+
+    .viewer > .row.header {
+      border-bottom: 1px solid var(--line);
+      background: var(--header-row-bg);
+      color: var(--muted);
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .meta { color: var(--muted); font-size: 0.92rem; }
+
+    .table {
+      overflow: auto;
+      max-height: calc(100vh - 290px);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92rem;
+      contain: content;
+      position: relative;
+    }
+
+    .table-viewport {
+      position: relative;
+      min-height: 100%;
+    }
+
+    .table-spacer {
+      height: 0;
+    }
+
+    .table-window {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      will-change: transform;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 72px minmax(220px, 290px) 1fr;
+      border-bottom: 1px solid rgba(144, 177, 214, 0.1);
+    }
+
+    .cell {
+      padding: 8px 12px;
+      min-width: 0;
+      border-right: 1px solid rgba(144, 177, 214, 0.08);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .table.wrap-lines .cell {
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-wrap: break-word;
+    }
+
+    .line-no {
+      color: var(--warn);
+      text-align: right;
+    }
+
+    .timestamp { color: var(--accent-2); }
+
+    .raw { color: var(--raw-text); }
+
+    .status {
+      padding: 12px 16px;
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .status strong { color: var(--text); }
+
+    .error { color: var(--danger); }
+
+    @media (max-width: 1100px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .controls > .group:last-child { grid-column: span 2; }
+      .row { grid-template-columns: 64px 1fr; }
+      .cell.raw { grid-column: 1 / -1; border-top: 1px solid rgba(144, 177, 214, 0.08); }
+    }
+
+    @media (max-width: 720px) {
+      .app { padding: 8px; }
+      .controls { grid-template-columns: 1fr; }
+      .controls > .group:last-child { grid-column: auto; }
+      .manual-grid { grid-template-columns: 1fr; }
+      .header-right { justify-content: flex-start; }
+      .table { max-height: calc(100vh - 385px); }
+    }
+  </style>
+</head>
+<body>
+    <div class="app">
+      <header>
+      <div class="titleline">Log Viewer</div>
+      <div class="header-right">
+        <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">🌙</button>
+        <div class="credit">Created By: Muhammad Rajput (MRAJPUT)</div>
+      </div>
+      </header>
+
+      <section class="controls">
+        <div class="group">
+          <label for="files">Log files</label>
+        <input id="files" type="file" accept=".txt,.log,.info,.err,.out,.trace,.csv,.json,.txtlog,*/*" multiple />
+        </div>
+        <div class="group">
+          <label for="sample">Sample timestamp</label>
+          <input id="sample" type="text" placeholder="Paste a timestamp example, or leave blank" />
+        </div>
+        <div class="group">
+          <label for="from">From</label>
+          <input id="from" type="datetime-local" />
+        </div>
+        <div class="group">
+          <label for="to">To</label>
+          <input id="to" type="datetime-local" />
+        </div>
+        <div class="group">
+          <label>&nbsp;</label>
+          <button id="apply">Apply filters</button>
+        </div>
+        <div class="toggles">
+          <label class="toggle"><input id="showLine" type="checkbox" checked /> Show Line column</label>
+          <label class="toggle"><input id="dedup" type="checkbox" checked /> Remove duplicate lines ignoring timestamps</label>
+          <label class="toggle"><input id="fuzzyDedup" type="checkbox" checked /> Ignore numbers/PIDs when deduplicating</label>
+          <label class="toggle"><input id="matchAll" type="checkbox" checked /> Require timestamps</label>
+          <label class="toggle"><input id="wrapLines" type="checkbox" /> Wrap lines</label>
+        </div>
+        <div class="manual-panel" id="manualPanel">
+        <div class="meta">Manual mode shows the full file. Click a line, then highlight the exact timestamp text inside the preview and press "Use selection as timestamp sample".</div>
+        <div class="manual-grid">
+          <div class="manual-list" id="manualList"></div>
+          <div>
+            <textarea id="manualPreview" class="manual-preview" spellcheck="false" readonly></textarea>
+            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+              <button id="useSelection" type="button">Use selection as timestamp sample</button>
+              <button id="clearSample" type="button">Clear sample</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      </section>
+
+      <section class="viewer">
+        <div class="viewer-head">
+          <div class="meta" id="summary">Load one or more log files to begin.</div>
+        </div>
+      <div class="table" id="table">
+        <div class="table-viewport" id="tableViewport">
+          <div class="table-spacer" id="tableSpacer"></div>
+          <div class="table-window" id="tableWindow"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="status" id="status">
+      <div><strong>Tip:</strong> If the file uses a custom timestamp style, paste one example in the sample field and the viewer will try to recognize the format automatically.</div>
+      <div>Supported common patterns include syslog month-day-time, ISO 8601 with Z, and timestamps with timezone offsets like <code>2026-04-27 02:34:24.694 +00:00</code>.</div>
+    </section>
+  </div>
+
+  <script>
+    const els = {
+      files: document.getElementById("files"),
+      sample: document.getElementById("sample"),
+      from: document.getElementById("from"),
+      to: document.getElementById("to"),
+      dedup: document.getElementById("dedup"),
+      fuzzyDedup: document.getElementById("fuzzyDedup"),
+      matchAll: document.getElementById("matchAll"),
+      apply: document.getElementById("apply"),
+      table: document.getElementById("table"),
+      tableViewport: document.getElementById("tableViewport"),
+      tableSpacer: document.getElementById("tableSpacer"),
+      tableWindow: document.getElementById("tableWindow"),
+      summary: document.getElementById("summary"),
+      status: document.getElementById("status"),
+      manualPanel: document.getElementById("manualPanel"),
+      manualList: document.getElementById("manualList"),
+      manualPreview: document.getElementById("manualPreview"),
+      useSelection: document.getElementById("useSelection"),
+      clearSample: document.getElementById("clearSample"),
+      themeToggle: document.getElementById("themeToggle"),
+      showLine: document.getElementById("showLine"),
+      wrapLines: document.getElementById("wrapLines"),
+    };
+
+    const MONTHS = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    };
+
+    let activeEntries = [];
+    let parserMode = "auto";
+    let selectedManualIndex = 0;
+    let renderToken = 0;
+    let filterRaf = 0;
+    let visibleEntries = [];
+    let rowHeight = 32;
+    let viewportHeight = 0;
+    let scrollTop = 0;
+    let scrollRaf = 0;
+    let activeFileIndex = 0;
+    let fileData = [];
+    let manualMode = false;
+    let duplicateCount = 0;
+
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;",
+      })[ch]);
+    }
+
+    function setTheme(mode) {
+      const night = mode === "night";
+      document.documentElement.style.setProperty("color-scheme", night ? "dark" : "light");
+      document.documentElement.style.setProperty("--bg",          night ? "#08111f"                    : "#f0f4f8");
+      document.documentElement.style.setProperty("--panel",       night ? "rgba(10, 20, 35, 0.86)"     : "rgba(255, 255, 255, 0.95)");
+      document.documentElement.style.setProperty("--panel-2",     night ? "rgba(14, 29, 48, 0.92)"     : "#ffffff");
+      document.documentElement.style.setProperty("--line",        night ? "rgba(144,177,214,0.22)"     : "rgba(0, 40, 90, 0.14)");
+      document.documentElement.style.setProperty("--text",        night ? "#e8f0fb"                    : "#0d1b2a");
+      document.documentElement.style.setProperty("--muted",       night ? "#97acc6"                    : "#3a5068");
+      document.documentElement.style.setProperty("--accent",      night ? "#78d0ff"                    : "#005fa3");
+      document.documentElement.style.setProperty("--accent-2",    night ? "#7cffc8"                    : "#007a4d");
+      document.documentElement.style.setProperty("--warn",        night ? "#ffcf66"                    : "#8a5d00");
+      document.documentElement.style.setProperty("--danger",      night ? "#ff7d7d"                    : "#b91c1c");
+      document.documentElement.style.setProperty("--raw-text",    night ? "#dbe8f7"                    : "#1a2e40");
+      document.documentElement.style.setProperty("--header-row-bg", night ? "#091524"                  : "#dce8f5");
+      document.documentElement.style.setProperty("--shadow",      night ? "0 24px 80px rgba(0,0,0,0.45)" : "0 16px 45px rgba(20,33,48,0.12)");
+      document.body.style.background = night
+        ? "linear-gradient(180deg, #07111d 0%, #04070d 100%)"
+        : "linear-gradient(180deg, #e8f0f8 0%, #d4e4f0 100%)";
+      els.themeToggle.textContent = night ? "🌙" : "☀️";
+    }
+
+    function pad(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function localInputToDate(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function stripTimestamp(text) {
+      return text
+        .replace(/^\s*\[?\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\]?\s*[:\-,]?\s*/, "")
+        .replace(/^\s*\[?\d{1,2}\/[A-Za-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2}(?:\s+[+-]\d{2,4}|[+-]\d{2}:\d{2}|Z)?\]?\s*[:\-,]?\s*/, "")
+        .replace(/^\s*\[?\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}(?:\s+[APap][Mm])?\]?\s*[:\-,]?\s*/, "")
+        .replace(/^\s*\[?[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+\d{2}:\d{2}:\d{2}\]?\s*[:\-,]?\s*/, "")
+        .replace(/^\s*\[?\d{6}\s+\d{2}:\d{2}:\d{2}\]?\s*[:\-,]?\s*/, "")
+        .replace(/^\s*\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s*/, "")
+        .replace(/^\s*\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[+-]\d{2}:\d{2})?\s*[:\-,]?\s*/, "");
+    }
+
+    function parseIsoLike(text) {
+      const m = text.match(/^\s*(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})?\s*/);
+      if (!m) return null;
+      const iso = `${m[1]}T${m[2]}${m[3] ? "." + m[3] : ""}${m[4] || ""}`;
+      const dt = new Date(iso);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "iso-like", match: m[0], regex: "^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?" };
+    }
+
+    function parseIsoOffset(text) {
+      const m = text.match(/^\s*(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?\s+([+-]\d{2}:\d{2})\s*/);
+      if (!m) return null;
+      const iso = `${m[1]}T${m[2]}${m[3] ? "." + m[3] : ""}${m[4]}`;
+      const dt = new Date(iso);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "iso-offset", match: m[0], regex: "^\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?\\s+[+-]\\d{2}:\\d{2}" };
+    }
+
+    function parseSyslog(text) {
+      const m = text.match(/^\s*([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}:\d{2}:\d{2})\s*/);
+      if (!m) return null;
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = MONTHS[m[1].toLowerCase()];
+      if (month == null) return null;
+      const [hh, mm, ss] = m[3].split(":").map(Number);
+      const dt = new Date(year, month, Number(m[2]), hh, mm, ss, 0);
+      return { date: dt, kind: "syslog", match: m[0], regex: "^[A-Z][a-z]{2}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2}" };
+    }
+
+    function parseBracketedIso(text) {
+      const m = text.match(/^\s*\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)(?=[,\]\s])/);
+      if (!m) return null;
+      const dt = new Date(m[1]);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "bracketed-iso", match: m[0], regex: "^\\[(?:ISO 8601)\\]" };
+    }
+
+    function parseBracketedDateTime(text) {
+      const m = text.match(/^\s*\[(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+[+-]\d{2}:\d{2})?)(?=[,\]\s])/);
+      if (!m) return null;
+      const normalized = m[1].replace(/\s+/, "T").replace(/\s+([+-]\d{2}:\d{2})$/, "$1");
+      const dt = new Date(normalized);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "bracketed-datetime", match: m[0], regex: "^\\[(?:date time with offset)\\]" };
+    }
+
+    function parseAmericanDateTime(text) {
+      const m = text.match(/^\s*\[?(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\s+(AM|PM|am|pm))?\]?\s*/);
+      if (!m) return null;
+      let hh = Number(m[4]);
+      const mm = Number(m[5]);
+      const ss = Number(m[6]);
+      const ampm = m[7] ? m[7].toLowerCase() : null;
+      if (ampm === "pm" && hh < 12) hh += 12;
+      if (ampm === "am" && hh === 12) hh = 0;
+      const dt = new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]), hh, mm, ss);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "american-datetime", match: m[0], regex: "^\\d{1,2}/\\d{1,2}/\\d{4}\\s+\\d{1,2}:\\d{2}:\\d{2}(?:\\s+[APap][Mm])?" };
+    }
+
+    const LONG_MONTHS = {
+      january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+      july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+      jan: 0, feb: 1, mar: 2, apr: 3, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+    };
+
+    function parseLongDate(text) {
+      const m = text.match(/^\s*\[?([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})\]?\s*/);
+      if (!m) return null;
+      const month = LONG_MONTHS[m[1].toLowerCase()];
+      if (month == null) return null;
+      const dt = new Date(Number(m[3]), month, Number(m[2]), Number(m[4]), Number(m[5]), Number(m[6]));
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "long-date", match: m[0], regex: "^[A-Za-z]+\\s+\\d{1,2},\\s+\\d{4}\\s+\\d{2}:\\d{2}:\\d{2}" };
+    }
+
+    function parseYyMmDd(text) {
+      const m = text.match(/^\s*\[?(\d{2})(\d{2})(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\]?\s*/);
+      if (!m) return null;
+      const yy = Number(m[1]);
+      const MM = Number(m[2]);
+      const dd = Number(m[3]);
+      if (MM < 1 || MM > 12 || dd < 1 || dd > 31) return null;
+      const year = yy + (yy < 50 ? 2000 : 1900);
+      const dt = new Date(year, MM - 1, dd, Number(m[4]), Number(m[5]), Number(m[6]));
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "yymmdd-datetime", match: m[0], regex: "^\\d{6}\\s+\\d{2}:\\d{2}:\\d{2}" };
+    }
+
+    function parseDdMmYy(text) {
+      const m = text.match(/^\s*\[?(\d{2})(\d{2})(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\]?\s*/);
+      if (!m) return null;
+      const dd = Number(m[1]);
+      const MM = Number(m[2]);
+      const yy = Number(m[3]);
+      if (MM < 1 || MM > 12 || dd < 1 || dd > 31) return null;
+      const year = yy + (yy < 50 ? 2000 : 1900);
+      const dt = new Date(year, MM - 1, dd, Number(m[4]), Number(m[5]), Number(m[6]));
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "ddmmyy-datetime", match: m[0], regex: "^\\d{6}\\s+\\d{2}:\\d{2}:\\d{2}" };
+    }
+
+    function parseCommonLog(text) {
+      const m = text.match(/^\s*\[?(\d{1,2})\/([A-Za-z]{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})(?:\s+([+-]\d{2,4}|[+-]\d{2}:\d{2}|Z))?\]?\s*/);
+      if (!m) return null;
+      const month = MONTHS[m[2].toLowerCase()];
+      if (month == null) return null;
+      const timezone = m[7] || "";
+      let offset = "";
+      if (timezone) {
+        if (timezone === "Z") {
+          offset = "Z";
+        } else if (timezone.includes(":")) {
+          offset = timezone;
+        } else {
+          const sign = timezone[0];
+          const digits = timezone.slice(1);
+          if (digits.length === 2) {
+            offset = `${sign}${digits}:00`;
+          } else if (digits.length === 4) {
+            offset = `${sign}${digits.slice(0, 2)}:${digits.slice(2)}`;
+          }
+        }
+      }
+      const iso = `${m[3]}-${pad(month + 1)}-${pad(Number(m[1]))}T${m[4]}:${m[5]}:${m[6]}${offset}`;
+      const dt = new Date(iso);
+      return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "common-log", match: m[0], regex: "^\\d{1,2}/[A-Za-z]{3}/\\d{4}:\\d{2}:\\d{2}:\\d{2}" };
+    }
+
+    function parseLineTimestamp(line, parserFn) {
+      if (parserFn) return parserFn(line);
+      return parseBracketedIso(line) || parseIsoLike(line) || parseIsoOffset(line) || parseSyslog(line) || parseBracketedDateTime(line) || parseAmericanDateTime(line) || parseLongDate(line) || parseYyMmDd(line) || parseDdMmYy(line) || parseCommonLog(line);
+    }
+
+    function createDynamicParser(sampleStr) {
+      let regexStr = "";
+      for (let i = 0; i < sampleStr.length; i++) {
+        const char = sampleStr[i];
+        if (/\d/.test(char)) {
+          regexStr += "\\d";
+        } else if (/[a-zA-Z]/.test(char)) {
+          regexStr += "[a-zA-Z]";
+        } else if (char === " ") {
+          regexStr += "\\s";
+        } else {
+          regexStr += "\\" + char;
+        }
+      }
+      regexStr = regexStr
+        .replace(/(\\d)+/g, (match) => {
+          const len = match.length / 3;
+          return len === 4 ? `\\d{4}` : `\\d{1,2}`;
+        })
+        .replace(/(\[a-zA-Z\])+/g, (match) => `[a-zA-Z]{1,15}`)
+        .replace(/(\\s)+/g, `\\s+`);
+      const regexPattern = new RegExp("^\\s*\\[?(" + regexStr + ")\\]?\\s*");
+
+      return function(text) {
+        const m = text.match(regexPattern);
+        if (!m) return null;
+        let dateStr = m[1];
+        
+        let dt = new Date(dateStr);
+        if (Number.isNaN(dt.getTime())) {
+          const timeMatch = dateStr.match(/^\s*(\d{1,2})[:.](\d{1,2})(?:[:.](\d{1,2}))?(?:\.(\d+))?\s*(AM|PM|am|pm)?\s*$/);
+          if (timeMatch) {
+            let hh = Number(timeMatch[1]);
+            const mm = Number(timeMatch[2]);
+            const ss = Number(timeMatch[3] || 0);
+            const ms = Number((timeMatch[4] || "0").slice(0, 3).padEnd(3, "0"));
+            const ampm = timeMatch[5] ? timeMatch[5].toLowerCase() : null;
+            if (ampm === "pm" && hh < 12) hh += 12;
+            if (ampm === "am" && hh === 12) hh = 0;
+            
+            dt = new Date();
+            dt.setHours(hh, mm, ss, ms);
+          } else {
+            const numMatch = dateStr.match(/^\s*(\d+)\s*$/);
+            if (numMatch) {
+              dt = new Date(0);
+              dt.setMilliseconds(Number(numMatch[1]));
+            }
+          }
+        }
+        return Number.isNaN(dt.getTime()) ? null : { date: dt, kind: "custom-sample", match: m[0], regex: regexPattern.source };
+      };
+    }
+
+    function inferParserFromExample(example) {
+      const trimmed = example.trim();
+      if (!trimmed) return null;
+      if (/^\[?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/.test(trimmed)) return parseBracketedIso;
+      if (/^\[?(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})/.test(trimmed)) return parseBracketedDateTime;
+      if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(example)) return parseIsoLike;
+      if (/^[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}/.test(example)) return parseSyslog;
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(trimmed)) return parseAmericanDateTime;
+      if (/^[A-Za-z]+\s+\d{1,2},\s+\d{4}/.test(trimmed)) return parseLongDate;
+      if (/^\d{6}\s+\d{2}:\d{2}:\d{2}/.test(trimmed)) return parseYyMmDd;
+      if (/^\d{1,2}\/[A-Za-z]{3}\/\d{4}/.test(trimmed)) return parseCommonLog;
+      return createDynamicParser(trimmed);
+    }
+
+    function detectTimestampParserFromFile(lines) {
+      const probes = lines.slice(0, Math.min(lines.length, 200)).filter(Boolean);
+      for (const parser of [parseBracketedIso, parseIsoLike, parseIsoOffset, parseSyslog, parseBracketedDateTime, parseAmericanDateTime, parseLongDate, parseYyMmDd, parseDdMmYy, parseCommonLog]) {
+        const score = probes.reduce((count, line) => count + (parser(line) ? 1 : 0), 0);
+        if (score >= 2) return parser;
+      }
+      return null;
+    }
+
+    function showManualFileList(files) {
+      els.manualList.innerHTML = "";
+      files.forEach((file, idx) => {
+        const item = document.createElement("div");
+        item.className = "manual-item" + (idx === selectedManualIndex ? " active" : "");
+        item.textContent = file.name;
+        item.title = file.name;
+        item.addEventListener("click", () => {
+          selectedManualIndex = idx;
+          showManualFileList(files);
+          els.manualPreview.textContent = file.text;
+          els.sample.value = "";
+          activeFileIndex = idx;
+          applyFilters();
+        });
+        els.manualList.appendChild(item);
+      });
+    }
+
+    function updateModeUi() {
+      const current = fileData[activeFileIndex] || fileData[0];
+      const showManual = manualMode || (current && current.parser === "none");
+      els.manualPanel.classList.toggle("active", showManual);
+    }
+
+    function measureRowHeight() {
+      const probe = document.createElement("div");
+      probe.className = "row";
+      probe.style.visibility = "hidden";
+      probe.style.position = "absolute";
+      probe.style.width = "100%";
+      probe.innerHTML = `
+        <div class="cell line-no">1</div>
+        <div class="cell timestamp">2026-04-27T20:37:02.4332640Z:</div>
+        <div class="cell raw">probe</div>
+      `;
+      els.table.appendChild(probe);
+      rowHeight = Math.max(24, Math.round(probe.getBoundingClientRect().height));
+      probe.remove();
+    }
+
+    function renderVisibleRows() {
+      const entries = visibleEntries;
+      const total = entries.length;
+      const isWrap = els.wrapLines.checked;
+      const overscan = isWrap ? 30 : 12; // Use larger overscan when wrapping lines to fill viewport correctly
+      const start = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+      const visibleCount = Math.ceil(viewportHeight / rowHeight) + overscan * 2;
+      const end = Math.min(total, start + visibleCount);
+      const offset = start * rowHeight;
+
+      ++renderToken;
+      els.tableWindow.replaceChildren();
+      els.tableWindow.style.transform = `translateY(${offset}px)`;
+
+      const fragment = document.createDocumentFragment();
+      for (let i = start; i < end; i++) {
+        const entry = entries[i];
+        const row = document.createElement("div");
+        row.className = "row";
+        const showLine = els.showLine.checked;
+        row.style.gridTemplateColumns = showLine ? "72px minmax(220px, 290px) 1fr" : "minmax(220px, 290px) 1fr";
+        row.innerHTML = `
+          ${showLine ? `<div class="cell line-no">${entry.lineNo}</div>` : ""}
+          <div class="cell timestamp">${escapeHtml(entry.timestampText || "No timestamp found")}</div>
+          <div class="cell raw">${escapeHtml(entry.message)}</div>
+        `;
+        fragment.appendChild(row);
+      }
+
+      const contentHeight = Math.max(total * rowHeight, rowHeight * 2);
+      els.tableSpacer.style.height = `${contentHeight}px`;
+      els.tableWindow.appendChild(fragment);
+      const sourceCount = activeEntries.length;
+      els.summary.textContent = `${entries.length} visible line${entries.length === 1 ? "" : "s"} from ${sourceCount} parsed line${sourceCount === 1 ? "" : "s"}${els.dedup.checked ? `, ${duplicateCount} duplicate${duplicateCount === 1 ? "" : "s"} removed` : ""}.`;
+    }
+
+    function render(entries) {
+      activeEntries = entries;
+      visibleEntries = entries;
+      measureRowHeight();
+      viewportHeight = els.table.clientHeight || 1;
+      scrollTop = 0;
+      els.table.scrollTop = 0;
+      renderVisibleRows();
+    }
+
+    function applyFilters() {
+      const from = localInputToDate(els.from.value);
+      const to = localInputToDate(els.to.value);
+      const dedup = els.dedup.checked;
+      const requireTimestamp = els.matchAll.checked;
+      const current = fileData[activeFileIndex] || fileData[0];
+      const sourceEntries = current ? current.entries : [];
+
+      let filtered = sourceEntries.filter((entry) => {
+        if (requireTimestamp && !entry.timestamp) return false;
+        if (from && entry.timestamp && entry.timestamp < from) return false;
+        if (to && entry.timestamp && entry.timestamp > to) return false;
+        return true;
+      });
+
+      const beforeDedup = filtered.length;
+      if (dedup) {
+        const seen = new Set();
+        const ignoreNumbers = els.fuzzyDedup.checked;
+        filtered = filtered.filter((entry) => {
+          let msg = stripTimestamp(entry.message).trim().toLowerCase();
+          if (ignoreNumbers) {
+            msg = msg.replace(/\d+/g, "#");
+          }
+          const key = `${entry.fileName}::${msg}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      duplicateCount = beforeDedup - filtered.length;
+
+      render(filtered);
+    }
+
+    function syncDetectionMode() {
+      manualMode = Boolean(els.sample.value.trim());
+      els.sample.setAttribute("data-mode", manualMode ? "manual" : "auto");
+      updateModeUi();
+    }
+
+    function scheduleApplyFilters() {
+      cancelAnimationFrame(filterRaf);
+      filterRaf = requestAnimationFrame(() => {
+        syncDetectionMode();
+        applyFilters();
+      });
+    }
+
+    function scheduleRender() {
+      cancelAnimationFrame(scrollRaf);
+      scrollRaf = requestAnimationFrame(renderVisibleRows);
+    }
+
+    async function readFiles(files) {
+      fileData = [];
+      selectedManualIndex = 0;
+      activeFileIndex = 0;
+      manualMode = false;
+      const globalSampleParser = inferParserFromExample(els.sample.value.trim() || "");
+      for (const file of files) {
+        const text = await file.text();
+        const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        const detectedParser = globalSampleParser || detectTimestampParserFromFile(lines) || null;
+        const entries = [];
+        lines.forEach((line, index) => {
+          const parsed = parseLineTimestamp(line, detectedParser);
+          entries.push({
+            fileName: file.name,
+            lineNo: index + 1,
+            rawLine: line,
+            timestamp: parsed?.date || null,
+            timestampText: parsed ? parsed.match.trim() : "",
+            parser: parsed?.kind || "none",
+            regex: parsed?.regex || "",
+            message: stripTimestamp(line),
+          });
+        });
+        fileData.push({
+          name: file.name,
+          text,
+          entries,
+          parser: detectedParser ? (detectedParser.name || "detected") : "none",
+        });
+      }
+
+      showManualFileList(fileData);
+      if (fileData[0]) els.manualPreview.textContent = fileData[0].text;
+      const current = fileData[activeFileIndex] || fileData[0];
+      parserMode = current ? `${current.name} ready` : "none";
+      syncDetectionMode();
+      applyFilters();
+      const noParserWarning = current && current.parser === "none"
+        ? `<div class="error" style="margin-top:8px; font-weight:600;">⚠️ No timestamp format was automatically recognized for this file. We have opened the manual preview below so you can highlight a sample timestamp.</div>`
+        : "";
+      els.status.innerHTML = `
+        <div><strong>Loaded:</strong> ${files.length} file${files.length === 1 ? "" : "s"}</div>
+        <div><strong>Active:</strong> ${current ? current.name : "none"}</div>
+        ${noParserWarning}
+      `;
+    }
+
+    function reparseFiles() {
+      const globalSampleParser = inferParserFromExample(els.sample.value.trim() || "");
+      fileData.forEach((file) => {
+        const lines = file.text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        const detectedParser = globalSampleParser || detectTimestampParserFromFile(lines) || null;
+        file.parser = detectedParser ? (detectedParser.name || "detected") : "none";
+        
+        file.entries = [];
+        lines.forEach((line, index) => {
+          const parsed = parseLineTimestamp(line, detectedParser);
+          file.entries.push({
+            fileName: file.name,
+            lineNo: index + 1,
+            rawLine: line,
+            timestamp: parsed?.date || null,
+            timestampText: parsed ? parsed.match.trim() : "",
+            parser: parsed?.kind || "none",
+            regex: parsed?.regex || "",
+            message: stripTimestamp(line),
+          });
+        });
+      });
+      const current = fileData[activeFileIndex] || fileData[0];
+      parserMode = current ? `${current.name} ready` : "none";
+    }
+
+    function rebuildFromPreviewSelection() {
+      const selection = window.getSelection ? String(window.getSelection()).trim() : "";
+      if (!selection) {
+        els.status.innerHTML = `<div class="error">Select a timestamp example in the manual preview first.</div>`;
+        return;
+      }
+      els.sample.value = selection;
+      reparseFiles();
+      scheduleApplyFilters();
+    }
+
+    els.files.addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      await readFiles(files);
+    });
+
+    els.table.addEventListener("scroll", () => {
+      scrollTop = els.table.scrollTop;
+      scheduleRender();
+    });
+
+    window.addEventListener("resize", () => {
+      viewportHeight = els.table.clientHeight || 1;
+      scheduleRender();
+    });
+
+    els.themeToggle.addEventListener("click", () => {
+      const next = els.themeToggle.textContent.trim() === "🌙" ? "day" : "night";
+      setTheme(next);
+    });
+    els.useSelection.addEventListener("click", rebuildFromPreviewSelection);
+    els.clearSample.addEventListener("click", () => {
+      els.sample.value = "";
+      reparseFiles();
+      scheduleApplyFilters();
+    });
+
+    [els.from, els.to, els.dedup, els.fuzzyDedup, els.matchAll].forEach((el) => {
+      el.addEventListener("input", scheduleApplyFilters);
+      el.addEventListener("change", scheduleApplyFilters);
+    });
+    [els.sample].forEach((el) => {
+      el.addEventListener("input", () => {
+        reparseFiles();
+        scheduleApplyFilters();
+      });
+      el.addEventListener("change", () => {
+        reparseFiles();
+        scheduleApplyFilters();
+      });
+    });
+    [els.showLine].forEach((el) => {
+      el.addEventListener("change", scheduleRender);
+    });
+    els.wrapLines.addEventListener("change", () => {
+      els.table.classList.toggle("wrap-lines", els.wrapLines.checked);
+      measureRowHeight();
+      scheduleRender();
+    });
+    els.apply.addEventListener("click", applyFilters);
+
+    setTheme("night");
+    updateModeUi();
+    render([]);
+  </script>
+</body>
+</html>
