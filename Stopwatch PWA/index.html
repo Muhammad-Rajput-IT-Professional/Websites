@@ -912,8 +912,8 @@
                 try {
                     // Launch native Document PiP window
                     activePipWindow = await documentPictureInPicture.requestWindow({
-                        width: 380,
-                        height: 180,
+                        width: 640,
+                        height: 90,
                     });
 
                     // Port current Tailwind and font CSS rules over to the isolated PiP document context
@@ -928,16 +928,16 @@
                     const theme = getColorClasses(timer.accent);
 
                     // Build PiP custom interface markup
-                    activePipWindow.document.body.className = "h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 flex flex-col justify-between select-none overflow-hidden";
+                    activePipWindow.document.body.className = "h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 flex items-center gap-4 select-none overflow-hidden";
                     activePipWindow.document.body.innerHTML = `
-                        <div class="flex items-center space-x-2">
-                            <span class="w-2.5 h-2.5 rounded-full ${timer.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}" id="pip-status-dot"></span>
+                        <div class="flex items-center space-x-2 min-w-0 flex-1">
+                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 ${timer.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}" id="pip-status-dot"></span>
                             <h1 class="text-sm font-bold truncate">${timer.name}</h1>
                         </div>
-                        <div class="text-3xl font-mono-timer font-bold text-center tracking-tight text-slate-800 dark:text-white" id="pip-display">
+                        <div class="text-3xl font-mono-timer font-bold text-center tracking-tight text-slate-800 dark:text-white whitespace-nowrap flex-shrink-0" id="pip-display">
                             00:00:00.00
                         </div>
-                        <div class="flex gap-2 justify-center mt-2">
+                        <div class="flex gap-2 justify-center flex-shrink-0">
                             <button id="pip-btn-toggle" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400 transition-colors">
                                 ${timer.isRunning ? 'Pause' : 'Start'}
                             </button>
@@ -997,7 +997,7 @@
                 }
             }
             if (statusDot) {
-                statusDot.className = `w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`;
+                statusDot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 ${isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`;
             }
         }
 
