@@ -363,7 +363,8 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.setup-panel {
+.setup-panel,
+.noise-panel {
   display: grid;
   gap: 0.65rem;
   padding: 0.9rem;
@@ -390,7 +391,8 @@ h1 {
   font-weight: 800;
 }
 
-.setup-panel p {
+.setup-panel p,
+.noise-panel p {
   margin: 0;
   color: var(--muted);
   font-size: 0.86rem;
@@ -401,6 +403,12 @@ h1 {
   min-height: 2.9rem;
   color: var(--primary-dark);
   background: #e6f2ee;
+}
+
+.noise-setup-button {
+  min-height: 2.9rem;
+  color: #fff;
+  background: #2e3b38;
 }
 
 .setup-actions {

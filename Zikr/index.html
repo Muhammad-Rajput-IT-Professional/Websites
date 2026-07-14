@@ -73,6 +73,20 @@
           </div>
         </section>
 
+        <section class="noise-panel" aria-labelledby="noiseSetupTitle">
+          <div class="setup-heading">
+            <h2 id="noiseSetupTitle">Background noise setup</h2>
+            <span>Optional</span>
+          </div>
+          <p id="noiseSetupHint">
+            In a noisy place, record four seconds without speaking so the counter can learn the background level.
+          </p>
+          <div class="setup-actions">
+            <button id="noiseSetupButton" class="button noise-setup-button" type="button">Record background</button>
+            <button id="clearNoiseSetupButton" class="button goal-clear-button" type="button" hidden>Clear background setup</button>
+          </div>
+        </section>
+
         <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
 
         <div class="mic-meter" aria-label="Microphone input level">
@@ -117,6 +131,6 @@
     </dialog>
 
     <script src="https://unpkg.com/meyda@5.6.3/dist/web/meyda.min.js"></script>
-    <script src="./app.js?v=13"></script>
+    <script src="./app.js?v=14"></script>
   </body>
 </html>

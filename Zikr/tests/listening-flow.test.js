@@ -32,6 +32,7 @@ for (const selector of [
   "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
+  "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
 ]) {
@@ -232,6 +233,22 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(Number(elements.get("#counter").textContent), slowCount);
   assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
   assert.strictEqual(elements.get("#startButton").disabled, false);
+
+  await elements.get("#noiseSetupButton").handlers.click();
+  assert.strictEqual(elements.get("#statusText").textContent, "Learning background");
+  const steadyBackground = new Float32Array(4096).fill(0.006);
+  for (let block = 0; block < 47; block += 1) currentProcessor.emit(steadyBackground);
+  assert.strictEqual(elements.get("#statusText").textContent, "Waiting");
+  assert.strictEqual(elements.get("#clearNoiseSetupButton").hidden, false);
+  const savedWithNoise = JSON.parse(savedValues.get("dhikr-counter-profiles-v1"));
+  assert(savedWithNoise.backgroundNoiseLevel > 0);
+
+  elements.get("#clearNoiseSetupButton").handlers.click();
+  assert.strictEqual(elements.get("#clearNoiseSetupButton").hidden, true);
+  assert.strictEqual(
+    JSON.parse(savedValues.get("dhikr-counter-profiles-v1")).backgroundNoiseLevel,
+    0,
+  );
 
   console.log("Listening flow tests passed");
 })().catch((error) => {

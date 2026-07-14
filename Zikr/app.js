@@ -12,6 +12,8 @@
     meterBoost: 4.5,
     analysisIntervalMs: 120,
     listeningBufferResetSilenceMs: 160,
+    backgroundCalibrationMs: 4000,
+    calibratedNoiseMultiplier: 1.65,
     minimumAnalysisWindowRatio: 0.58,
     mfccFrameSize: 512,
     mfccHopSize: 160,
@@ -58,6 +60,9 @@
   const micMeterTrack = document.querySelector("#micMeterTrack");
   const micMeterFill = document.querySelector("#micMeterFill");
   const micLevelText = document.querySelector("#micLevelText");
+  const noiseSetupButton = document.querySelector("#noiseSetupButton");
+  const clearNoiseSetupButton = document.querySelector("#clearNoiseSetupButton");
+  const noiseSetupHint = document.querySelector("#noiseSetupHint");
   const setupRequiredDialog = document.querySelector("#setupRequiredDialog");
   const closeSetupDialogButton = document.querySelector("#closeSetupDialogButton");
   const accuracyNoticeDialog = document.querySelector("#accuracyNoticeDialog");
@@ -67,6 +72,7 @@
     waiting: "Waiting",
     starting: "Starting",
     calibrating: "Voice setup",
+    noise: "Learning background",
     listening: "Listening",
     speech: "Phrase detected",
     unavailable: "Unavailable",
@@ -86,6 +92,9 @@
   let silentOutputNode = null;
   let sourceSampleRate = 48000;
   let noiseFloor = 0.004;
+  let backgroundNoiseLevel = 0;
+  let backgroundCalibrationFrames = 0;
+  let backgroundCalibrationLevels = [];
 
   let calibrationSpeaking = false;
   let calibrationSpeechFrames = 0;
@@ -127,7 +136,11 @@
   function persistState() {
     saveCurrentProfile();
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeProfileKey, profiles }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        activeProfileKey,
+        profiles,
+        backgroundNoiseLevel,
+      }));
     } catch (_) {
       // Counting still works when storage is blocked or full.
     }
@@ -138,6 +151,10 @@
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
       if (!saved || !saved.profiles || typeof saved.profiles !== "object" || Array.isArray(saved.profiles)) return;
       profiles = saved.profiles;
+      if (Number.isFinite(saved.backgroundNoiseLevel) && saved.backgroundNoiseLevel > 0) {
+        backgroundNoiseLevel = saved.backgroundNoiseLevel;
+        noiseFloor = backgroundNoiseLevel;
+      }
       if (typeof saved.activeProfileKey === "string" && profiles[saved.activeProfileKey]) {
         activeProfileKey = saved.activeProfileKey;
       }
@@ -178,6 +195,7 @@
     setStatus("waiting");
     updatePhrasePickerUi();
     updateSetupUi();
+    updateNoiseSetupUi();
     heardText.textContent = templates.length >= CONFIG.requiredExamples
       ? "Voice setup is ready. Press Start Listening."
       : `Record three examples of "${activePhrase}" to begin.`;
@@ -216,7 +234,7 @@
     if (completed) {
       setupHint.textContent = "Voice setup saved on this device.";
       calibrateButton.textContent = "Redo voice setup";
-      calibrateButton.disabled = false;
+      calibrateButton.disabled = mode !== "idle";
     } else {
       if (templates.length === 1) {
         setupHint.textContent = `For example 2, say "${activePhrase}" slowly, then pause.`;
@@ -226,13 +244,45 @@
         setupHint.textContent = `Say "${activePhrase}" once at a natural speed, then briefly pause.`;
       }
       calibrateButton.textContent = `Record example ${templates.length + 1}`;
-      calibrateButton.disabled = mode === "calibrating" || mode === "starting";
+      calibrateButton.disabled = mode !== "idle";
     }
     restartSetupButton.hidden = completed || (
       templates.length === 0 && mode !== "calibrating" && mode !== "starting"
     );
-    startButton.disabled = mode === "listening" || mode === "starting" || mode === "calibrating";
+    restartSetupButton.disabled = mode === "noise-calibrating";
+    startButton.disabled = mode !== "idle";
     stopButton.disabled = false;
+    updateNoiseSetupUi();
+  }
+
+  function updateNoiseSetupUi() {
+    if (mode === "noise-starting") {
+      noiseSetupButton.textContent = "Opening microphone...";
+      noiseSetupButton.disabled = true;
+      clearNoiseSetupButton.hidden = true;
+      return;
+    }
+    if (mode === "noise-calibrating") {
+      noiseSetupButton.textContent = "Cancel background recording";
+      noiseSetupButton.disabled = false;
+      clearNoiseSetupButton.hidden = true;
+      return;
+    }
+    noiseSetupButton.textContent = backgroundNoiseLevel
+      ? "Redo background recording"
+      : "Record background";
+    noiseSetupButton.disabled = mode !== "idle";
+    clearNoiseSetupButton.hidden = !backgroundNoiseLevel;
+    noiseSetupHint.textContent = backgroundNoiseLevel
+      ? "Background filtering is active. Redo it when the environment changes."
+      : "In a noisy place, record four seconds without speaking so the counter can learn the background level.";
+  }
+
+  function getVoiceEnergyThreshold() {
+    const multiplier = backgroundNoiseLevel
+      ? CONFIG.calibratedNoiseMultiplier
+      : CONFIG.noiseMultiplier;
+    return Math.max(CONFIG.minimumThreshold, noiseFloor * multiplier);
   }
 
   function showSetupRequired() {
@@ -296,15 +346,42 @@
     const rms = calculateRms(input);
     updateMeter(rms);
 
-    const threshold = Math.max(CONFIG.minimumThreshold, noiseFloor * CONFIG.noiseMultiplier);
+    const threshold = getVoiceEnergyThreshold();
     const hasVoiceEnergy = rms >= threshold;
-    if (!hasVoiceEnergy && !calibrationSpeaking) noiseFloor = noiseFloor * 0.96 + rms * 0.04;
+    if (!backgroundNoiseLevel && !hasVoiceEnergy && !calibrationSpeaking) {
+      noiseFloor = noiseFloor * 0.96 + rms * 0.04;
+    }
 
-    if (mode === "calibrating") {
+    if (mode === "noise-calibrating") {
+      processBackgroundCalibration(input.length, rms);
+    } else if (mode === "calibrating") {
       processCalibrationBlock(input, hasVoiceEnergy);
     } else if (mode === "listening") {
       processListeningBlock(input, hasVoiceEnergy);
     }
+  }
+
+  function processBackgroundCalibration(frameCount, rms) {
+    backgroundCalibrationFrames += frameCount;
+    backgroundCalibrationLevels.push(rms);
+    const elapsedMs = framesToMs(backgroundCalibrationFrames);
+    const remainingSeconds = Math.max(0, Math.ceil((CONFIG.backgroundCalibrationMs - elapsedMs) / 1000));
+    noiseSetupHint.textContent = remainingSeconds
+      ? `Stay quiet for ${remainingSeconds} more second${remainingSeconds === 1 ? "" : "s"}...`
+      : "Finishing background setup...";
+
+    if (elapsedMs < CONFIG.backgroundCalibrationMs) return;
+
+    backgroundNoiseLevel = Math.max(0.001, percentile(backgroundCalibrationLevels, 0.75));
+    noiseFloor = backgroundNoiseLevel;
+    backgroundCalibrationFrames = 0;
+    backgroundCalibrationLevels = [];
+    mode = "idle";
+    stopMicrophone();
+    persistState();
+    setStatus("waiting");
+    heardText.textContent = "Background noise setup complete. Voice matching is ready.";
+    updateSetupUi();
   }
 
   function processCalibrationBlock(input, hasVoiceEnergy) {
@@ -487,7 +564,7 @@
   function analyzeSpeechShape(samples) {
     const frameSize = CONFIG.mfccFrameSize;
     const hopSize = Math.floor(frameSize / 2);
-    const activityThreshold = Math.max(CONFIG.minimumThreshold, noiseFloor * CONFIG.noiseMultiplier);
+    const activityThreshold = getVoiceEnergyThreshold();
     let activeFrames = 0;
     let longestRun = 0;
     let currentRun = 0;
@@ -763,6 +840,59 @@
     const middle = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   }
+
+  function percentile(values, ratio) {
+    if (!values.length) return 0;
+    const sorted = [...values].sort((left, right) => left - right);
+    const index = Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)));
+    return sorted[index];
+  }
+
+  async function beginBackgroundCalibration() {
+    if (mode === "noise-calibrating") {
+      mode = "idle";
+      backgroundCalibrationFrames = 0;
+      backgroundCalibrationLevels = [];
+      stopMicrophone();
+      setStatus("waiting");
+      heardText.textContent = "Background recording cancelled.";
+      updateSetupUi();
+      return;
+    }
+
+    if (mode !== "idle") return;
+    mode = "noise-starting";
+    setStatus("starting");
+    heardText.textContent = "Opening the microphone for background setup...";
+    updateSetupUi();
+    try {
+      await ensureMicrophone();
+      mode = "noise-calibrating";
+      backgroundCalibrationFrames = 0;
+      backgroundCalibrationLevels = [];
+      setStatus("noise");
+      heardText.textContent = "Stay quiet while the background is measured.";
+      updateSetupUi();
+    } catch (error) {
+      mode = "idle";
+      stopMicrophone();
+      setStatus("unavailable");
+      heardText.textContent = error.name === "NotAllowedError"
+        ? "Microphone permission was denied. Allow it in browser settings and try again."
+        : error.message || "The microphone could not be started.";
+      updateSetupUi();
+    }
+  }
+
+  noiseSetupButton.addEventListener("click", beginBackgroundCalibration);
+
+  clearNoiseSetupButton.addEventListener("click", () => {
+    backgroundNoiseLevel = 0;
+    noiseFloor = 0.004;
+    persistState();
+    heardText.textContent = "Background noise setup cleared.";
+    updateNoiseSetupUi();
+  });
 
   async function beginCalibration() {
     if (templates.length >= CONFIG.requiredExamples) {
