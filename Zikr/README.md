@@ -6,6 +6,12 @@ The current version uses personalized keyword spotting instead of speech recogni
 
 Each dhikr can also have its own target count. Reaching the target plays a short local chime, vibrates supported phones, and displays a completion message.
 
+During listening, a short silence clears the rolling comparison window. This prevents a later keyboard tap, movement, or other sound from retriggering the last valid phrase.
+
+Fast repetitions are analyzed from shorter rolling windows and do not require a long pause between phrases. The natural, slow, and fast setup examples remain important because they define the user's expected range.
+
+First-time visitors see an accuracy notice explaining that a quiet environment and consistent microphone distance improve results, but local sound-pattern matching can still miss or add counts.
+
 Audio is never recorded, saved, or uploaded. Counts and derived sound fingerprints are stored in the browser's local storage so each phrase remains ready after refresh. The data stays on that browser and device and is removed if the user clears site data. The app has no paid services or custom backend and can be hosted on GitHub Pages. Browser support is best in current Chrome or Edge; microphone access requires HTTPS (as provided by GitHub Pages) or `localhost`.
 
 ## Run locally

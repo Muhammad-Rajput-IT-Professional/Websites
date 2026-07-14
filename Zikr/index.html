@@ -69,7 +69,7 @@
           <p id="setupHint">Record the phrase three times so this device can learn your pronunciation.</p>
           <div class="setup-actions">
             <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
-            <button id="restartSetupButton" class="button restart-setup-button" type="button">Restart setup</button>
+            <button id="restartSetupButton" class="button restart-setup-button" type="button" hidden>Restart setup</button>
           </div>
         </section>
 
@@ -105,7 +105,18 @@
       <button id="closeSetupDialogButton" class="button primary" type="button">Go to voice setup</button>
     </dialog>
 
+    <dialog id="accuracyNoticeDialog" class="setup-dialog" aria-labelledby="accuracyNoticeTitle">
+      <h2 id="accuracyNoticeTitle">Before you begin</h2>
+      <p>
+        For the best results, use the counter in a quiet environment and keep your phone at a
+        similar distance while setting up and counting. Background conversation, typing,
+        movement, echoes, or changing microphone distance can cause missed or extra counts.
+      </p>
+      <p>This counter may not be 100% accurate, so please check the count occasionally.</p>
+      <button id="acceptAccuracyNoticeButton" class="button primary" type="button">I understand</button>
+    </dialog>
+
     <script src="https://unpkg.com/meyda@5.6.3/dist/web/meyda.min.js"></script>
-    <script src="./app.js?v=10"></script>
+    <script src="./app.js?v=13"></script>
   </body>
 </html>

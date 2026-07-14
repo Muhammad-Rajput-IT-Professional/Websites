@@ -33,6 +33,7 @@ for (const selector of [
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
+  "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
 ]) {
   elements.set(selector, createElement());
 }
@@ -132,6 +133,12 @@ async function recordExample(voiceBlocks = 8) {
 }
 
 (async () => {
+  assert.strictEqual(elements.get("#accuracyNoticeDialog").open, true);
+  elements.get("#acceptAccuracyNoticeButton").handlers.click();
+  assert.strictEqual(elements.get("#accuracyNoticeDialog").open, false);
+  assert.strictEqual(savedValues.get("dhikr-counter-accuracy-notice-v1"), "seen");
+  assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
+
   await elements.get("#startButton").handlers.click();
   assert.strictEqual(elements.get("#setupRequiredDialog").open, true);
   elements.get("#closeSetupDialogButton").handlers.click();
@@ -147,14 +154,18 @@ async function recordExample(voiceBlocks = 8) {
 
   await recordExample();
   assert.strictEqual(elements.get("#setupProgress").textContent, "1 of 3");
+  assert.strictEqual(elements.get("#restartSetupButton").hidden, false);
   elements.get("#restartSetupButton").handlers.click();
   assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+  assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
 
   await recordExample();
   await recordExample(11);
   await recordExample(6);
 
   assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
+  assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
+  assert.strictEqual(elements.get("#calibrateButton").textContent, "Redo voice setup");
   assert.strictEqual(elements.get("#startButton").disabled, false);
   assert.strictEqual(microphoneStops, 2);
 
@@ -178,13 +189,28 @@ async function recordExample(voiceBlocks = 8) {
   for (let block = 0; block < 8; block += 1) currentProcessor.emit(silenceBlock);
   assert.strictEqual(Number(elements.get("#counter").textContent), normalCount);
 
+  for (let block = 0; block < 12; block += 1) currentProcessor.emit(snapBlock);
+  assert.strictEqual(
+    Number(elements.get("#counter").textContent),
+    normalCount,
+    "noise after speech must not retrigger the previous phrase",
+  );
+  assert.strictEqual(elements.get("#statusText").textContent, "Listening");
+
   for (let block = 0; block < 36; block += 1) currentProcessor.emit(voiceBlock(block % 6));
   const fastCount = Number(elements.get("#counter").textContent);
   assert(fastCount >= normalCount + 2, `normal=${normalCount}, after-fast=${fastCount}`);
 
+  for (let block = 0; block < 30; block += 1) currentProcessor.emit(voiceBlock(block % 5));
+  const veryFastCount = Number(elements.get("#counter").textContent);
+  assert(
+    veryFastCount >= fastCount + 2,
+    `after-fast=${fastCount}, after-very-fast=${veryFastCount}`,
+  );
+
   for (let block = 0; block < 55; block += 1) currentProcessor.emit(voiceBlock(block % 11));
   const slowCount = Number(elements.get("#counter").textContent);
-  assert(slowCount >= fastCount + 2, `after-fast=${fastCount}, after-slow=${slowCount}`);
+  assert(slowCount >= veryFastCount + 2, `after-very-fast=${veryFastCount}, after-slow=${slowCount}`);
   assert.strictEqual(elements.get("#startButton").disabled, true);
 
   elements.get("#stopButton").handlers.click();

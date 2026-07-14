@@ -30,6 +30,7 @@ for (const selector of [
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
+  "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
 ]) {
   elements.set(selector, element());
 }

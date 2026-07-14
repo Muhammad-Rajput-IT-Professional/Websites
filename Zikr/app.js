@@ -5,26 +5,29 @@
     requiredExamples: 3,
     outputSampleRate: 16000,
     calibrationSilenceMs: 320,
-    minimumExampleMs: 500,
+    minimumExampleMs: 350,
     maximumExampleMs: 3000,
     minimumThreshold: 0.012,
     noiseMultiplier: 2.8,
     meterBoost: 4.5,
     analysisIntervalMs: 120,
+    listeningBufferResetSilenceMs: 160,
+    minimumAnalysisWindowRatio: 0.58,
     mfccFrameSize: 512,
     mfccHopSize: 160,
     dtwBandRatio: 0.28,
-    refractoryRatio: 0.72,
-    minimumNewVoicedRatio: 0.65,
-    minimumActiveMs: 300,
-    minimumContinuousVoiceMs: 150,
-    minimumActiveRatio: 0.26,
+    refractoryRatio: 0.62,
+    minimumNewVoicedRatio: 0.52,
+    minimumActiveMs: 220,
+    minimumContinuousVoiceMs: 110,
+    minimumActiveRatio: 0.22,
     maximumCrestFactor: 14,
     maximumSpectralFlatness: 0.58,
     requiredMatchConfirmations: 1,
   });
 
   const STORAGE_KEY = "dhikr-counter-profiles-v1";
+  const ACCURACY_NOTICE_KEY = "dhikr-counter-accuracy-notice-v1";
   const PRESETS = Object.freeze({
     astaghfirullah: { label: "أَسْتَغْفِرُ اللَّهَ" },
     subhanallah_wabihamdihi: { label: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ" },
@@ -57,13 +60,15 @@
   const micLevelText = document.querySelector("#micLevelText");
   const setupRequiredDialog = document.querySelector("#setupRequiredDialog");
   const closeSetupDialogButton = document.querySelector("#closeSetupDialogButton");
+  const accuracyNoticeDialog = document.querySelector("#accuracyNoticeDialog");
+  const acceptAccuracyNoticeButton = document.querySelector("#acceptAccuracyNoticeButton");
 
   const statusLabels = {
     waiting: "Waiting",
     starting: "Starting",
     calibrating: "Voice setup",
     listening: "Listening",
-    speech: "Sound detected",
+    speech: "Phrase detected",
     unavailable: "Unavailable",
   };
 
@@ -97,6 +102,7 @@
   let matchCandidateStreak = 0;
   let lastCandidateTime = -Infinity;
   let voicedSamplesSinceDetection = Infinity;
+  let consecutiveSilenceSamples = 0;
 
   function validTemplates(value) {
     if (!Array.isArray(value)) return [];
@@ -222,6 +228,9 @@
       calibrateButton.textContent = `Record example ${templates.length + 1}`;
       calibrateButton.disabled = mode === "calibrating" || mode === "starting";
     }
+    restartSetupButton.hidden = completed || (
+      templates.length === 0 && mode !== "calibrating" && mode !== "starting"
+    );
     startButton.disabled = mode === "listening" || mode === "starting" || mode === "calibrating";
     stopButton.disabled = false;
   }
@@ -231,6 +240,17 @@
       setupRequiredDialog.showModal();
     }
     else heardText.textContent = "Complete all three voice setup recordings first.";
+  }
+
+  function showFirstVisitNotice() {
+    try {
+      if (window.localStorage.getItem(ACCURACY_NOTICE_KEY)) return;
+    } catch (_) {
+      // Show the notice when storage is unavailable.
+    }
+    if (typeof accuracyNoticeDialog.showModal === "function" && !accuracyNoticeDialog.open) {
+      accuracyNoticeDialog.showModal();
+    }
   }
 
   async function ensureMicrophone() {
@@ -379,19 +399,31 @@
     );
     samplesSinceAnalysis += downsampled.length;
     listeningTimeMs += (downsampled.length / CONFIG.outputSampleRate) * 1000;
-    if (hasVoiceEnergy && Number.isFinite(voicedSamplesSinceDetection)) {
-      voicedSamplesSinceDetection += downsampled.length;
-    }
-
     if (hasVoiceEnergy) {
-      setStatus("speech");
+      consecutiveSilenceSamples = 0;
+      if (Number.isFinite(voicedSamplesSinceDetection)) {
+        voicedSamplesSinceDetection += downsampled.length;
+      }
+      setStatus("listening");
     } else {
+      consecutiveSilenceSamples += downsampled.length;
       setStatus("listening");
       matchCandidateStreak = 0;
+      const resetAfterSamples = Math.round(
+        (CONFIG.listeningBufferResetSilenceMs / 1000) * CONFIG.outputSampleRate,
+      );
+      if (consecutiveSilenceSamples >= resetAfterSamples) {
+        listeningSamples = new Float32Array(0);
+        samplesSinceAnalysis = 0;
+        lastCandidateTime = -Infinity;
+      }
       return;
     }
     const intervalSamples = Math.round((CONFIG.analysisIntervalMs / 1000) * CONFIG.outputSampleRate);
-    if (samplesSinceAnalysis < intervalSamples || listeningSamples.length < expectedDurationSamples * 0.8) return;
+    if (
+      samplesSinceAnalysis < intervalSamples
+      || listeningSamples.length < expectedDurationSamples * CONFIG.minimumAnalysisWindowRatio
+    ) return;
     samplesSinceAnalysis = 0;
     analyzeListeningWindow();
   }
@@ -616,6 +648,7 @@
     matchCandidateStreak = 0;
     lastCandidateTime = -Infinity;
     voicedSamplesSinceDetection = Infinity;
+    consecutiveSilenceSamples = 0;
     resetCalibrationCapture();
   }
 
@@ -776,6 +809,15 @@
     }
   });
 
+  acceptAccuracyNoticeButton.addEventListener("click", () => {
+    try {
+      window.localStorage.setItem(ACCURACY_NOTICE_KEY, "seen");
+    } catch (_) {
+      // The notice can still be closed if storage is blocked.
+    }
+    accuracyNoticeDialog.close();
+  });
+
   function applyPhrase() {
     const nextPhrase = phraseInput.value.trim();
     if (!nextPhrase) {
@@ -824,6 +866,7 @@
       matchCandidateStreak = 0;
       lastCandidateTime = -Infinity;
       voicedSamplesSinceDetection = Infinity;
+      consecutiveSilenceSamples = 0;
       setStatus("listening");
       stopButton.disabled = false;
       heardText.textContent = "Listening for your calibrated phrase...";
@@ -909,6 +952,7 @@
     initialPreset ? initialPreset.label : initialProfile && initialProfile.label || "Custom dhikr",
     false,
   );
+  showFirstVisitNotice();
 
   window.DhikrKeywordMatcher = {
     normalizeFeatureSequence,
