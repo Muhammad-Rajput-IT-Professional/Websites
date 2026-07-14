@@ -30,6 +30,7 @@
 
   const STORAGE_KEY = "dhikr-counter-profiles-v1";
   const ACCURACY_NOTICE_KEY = "dhikr-counter-accuracy-notice-v1";
+  const MAX_COUNTER_VALUE = 999999;
   const PRESETS = Object.freeze({
     astaghfirullah: { label: "أَسْتَغْفِرُ اللَّهَ" },
     subhanallah_wabihamdihi: { label: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ" },
@@ -39,6 +40,10 @@
   const startButton = document.querySelector("#startButton");
   const stopButton = document.querySelector("#stopButton");
   const resetButton = document.querySelector("#resetButton");
+  const decrementButton = document.querySelector("#decrementButton");
+  const incrementButton = document.querySelector("#incrementButton");
+  const counterValueInput = document.querySelector("#counterValueInput");
+  const setCounterButton = document.querySelector("#setCounterButton");
   const goalInput = document.querySelector("#goalInput");
   const setGoalButton = document.querySelector("#setGoalButton");
   const clearGoalButton = document.querySelector("#clearGoalButton");
@@ -67,6 +72,10 @@
   const closeSetupDialogButton = document.querySelector("#closeSetupDialogButton");
   const accuracyNoticeDialog = document.querySelector("#accuracyNoticeDialog");
   const acceptAccuracyNoticeButton = document.querySelector("#acceptAccuracyNoticeButton");
+  const installAppButton = document.querySelector("#installAppButton");
+  const installHelpDialog = document.querySelector("#installHelpDialog");
+  const installHelpText = document.querySelector("#installHelpText");
+  const closeInstallHelpButton = document.querySelector("#closeInstallHelpButton");
 
   const statusLabels = {
     waiting: "Waiting",
@@ -91,6 +100,9 @@
   let processorNode = null;
   let silentOutputNode = null;
   let sourceSampleRate = 48000;
+  let wakeLock = null;
+  let wakeLockDesired = false;
+  let deferredInstallPrompt = null;
   let noiseFloor = 0.004;
   let backgroundNoiseLevel = 0;
   let backgroundCalibrationFrames = 0;
@@ -207,10 +219,75 @@
     statusText.textContent = statusLabels[status] || statusLabels.waiting;
   }
 
+  async function requestScreenWakeLock() {
+    if (
+      !wakeLockDesired
+      || wakeLock
+      || document.visibilityState !== "visible"
+      || !navigator.wakeLock
+    ) return;
+
+    try {
+      const requestedLock = await navigator.wakeLock.request("screen");
+      if (!wakeLockDesired || mode !== "listening") {
+        await requestedLock.release();
+        return;
+      }
+      wakeLock = requestedLock;
+      requestedLock.addEventListener("release", () => {
+        if (wakeLock === requestedLock) wakeLock = null;
+      });
+    } catch (_) {
+      wakeLock = null;
+    }
+  }
+
+  function releaseScreenWakeLock() {
+    wakeLockDesired = false;
+    const activeLock = wakeLock;
+    wakeLock = null;
+    if (activeLock) activeLock.release().catch(() => {});
+  }
+
   function updateCounter() {
     counterEl.textContent = String(count);
     updateGoalUi();
   }
+
+  function applyManualCount(nextCount, message) {
+    count = Math.min(MAX_COUNTER_VALUE, Math.max(0, Math.floor(nextCount)));
+    goalCelebrated = goal > 0 && count >= goal;
+    updateCounter();
+    persistState();
+    heardText.textContent = message;
+  }
+
+  function setCounterFromInput() {
+    const nextCount = Number.parseInt(counterValueInput.value, 10);
+    if (!Number.isFinite(nextCount) || nextCount < 0 || nextCount > MAX_COUNTER_VALUE) {
+      heardText.textContent = `Enter a counter value between 0 and ${MAX_COUNTER_VALUE.toLocaleString()}.`;
+      counterValueInput.focus();
+      return;
+    }
+    applyManualCount(nextCount, `Counter set to ${nextCount}.`);
+    counterValueInput.value = "";
+  }
+
+  decrementButton.addEventListener("click", () => {
+    applyManualCount(count - 1, count > 0 ? "Counter reduced by one." : "Counter is already at zero.");
+  });
+
+  incrementButton.addEventListener("click", () => {
+    applyManualCount(
+      count + 1,
+      count < MAX_COUNTER_VALUE ? "Counter increased by one." : "Counter is at its maximum value.",
+    );
+  });
+
+  setCounterButton.addEventListener("click", setCounterFromInput);
+  counterValueInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") setCounterFromInput();
+  });
 
   function updateGoalUi() {
     if (!goal) {
@@ -762,6 +839,7 @@
   }
 
   function stopMicrophone() {
+    releaseScreenWakeLock();
     if (processorNode) {
       processorNode.removeEventListener("audioprocess", handleAudioProcess);
       processorNode.disconnect();
@@ -997,6 +1075,8 @@
       lastCandidateTime = -Infinity;
       voicedSamplesSinceDetection = Infinity;
       consecutiveSilenceSamples = 0;
+      wakeLockDesired = true;
+      requestScreenWakeLock();
       setStatus("listening");
       stopButton.disabled = false;
       heardText.textContent = "Listening for your calibrated phrase...";
@@ -1068,10 +1148,72 @@
     heardText.textContent = "Target cleared.";
   });
 
+  function isRunningAsInstalledApp() {
+    const standaloneDisplay = typeof window.matchMedia === "function"
+      && window.matchMedia("(display-mode: standalone)").matches;
+    return standaloneDisplay || navigator.standalone === true;
+  }
+
+  function updateInstallButton() {
+    installAppButton.hidden = isRunningAsInstalledApp();
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallButton();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    installAppButton.hidden = true;
+    heardText.textContent = "Dhikr Counter installed.";
+  });
+
+  installAppButton.addEventListener("click", async () => {
+    if (deferredInstallPrompt) {
+      const promptEvent = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      if (choice && choice.outcome === "accepted") {
+        heardText.textContent = "Installing Dhikr Counter...";
+      }
+      return;
+    }
+
+    const userAgent = navigator.userAgent || "";
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    installHelpText.textContent = isAppleMobile
+      ? "In Safari, tap the Share button, choose Add to Home Screen, then confirm Add."
+      : "Open your browser menu and choose Install app or Add to Home Screen.";
+    if (typeof installHelpDialog.showModal === "function" && !installHelpDialog.open) {
+      installHelpDialog.showModal();
+    }
+  });
+
+  closeInstallHelpButton.addEventListener("click", () => {
+    installHelpDialog.close();
+  });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+    });
+  }
+
   window.addEventListener("pagehide", () => {
     persistState();
     mode = "idle";
     stopMicrophone();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && mode === "listening") {
+      wakeLockDesired = true;
+      requestScreenWakeLock();
+    }
   });
 
   loadPersistedState();
@@ -1083,6 +1225,7 @@
     false,
   );
   showFirstVisitNotice();
+  updateInstallButton();
 
   window.DhikrKeywordMatcher = {
     normalizeFeatureSequence,

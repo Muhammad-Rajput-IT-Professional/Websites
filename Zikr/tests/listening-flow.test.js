@@ -27,6 +27,7 @@ function createElement() {
 const elements = new Map();
 for (const selector of [
   "#counter", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
+  "#decrementButton", "#incrementButton", "#counterValueInput", "#setCounterButton",
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
   "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
@@ -35,13 +36,17 @@ for (const selector of [
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
+  "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
 ]) {
   elements.set(selector, createElement());
 }
 
 let currentProcessor;
 let microphoneStops = 0;
+let wakeLockRequests = 0;
+let wakeLockReleases = 0;
 const savedValues = new Map();
+const documentHandlers = {};
 
 function audioNode() {
   return { connect() {}, disconnect() {} };
@@ -100,12 +105,31 @@ const fakeWindow = {
 };
 const sandbox = {
   window: fakeWindow,
-  document: { querySelector: (selector) => elements.get(selector) },
+  document: {
+    visibilityState: "visible",
+    addEventListener(name, handler) { documentHandlers[name] = handler; },
+    querySelector: (selector) => elements.get(selector),
+  },
   navigator: {
     mediaDevices: {
       getUserMedia: async () => ({
         getTracks: () => [{ stop: () => { microphoneStops += 1; } }],
       }),
+    },
+    wakeLock: {
+      async request(type) {
+        assert.strictEqual(type, "screen");
+        wakeLockRequests += 1;
+        const handlers = {};
+        return {
+          addEventListener(name, handler) { handlers[name] = handler; },
+          release() {
+            wakeLockReleases += 1;
+            if (handlers.release) handlers.release();
+            return Promise.resolve();
+          },
+        };
+      },
     },
     vibrate() {},
   },
@@ -140,6 +164,11 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(savedValues.get("dhikr-counter-accuracy-notice-v1"), "seen");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
 
+  await elements.get("#installAppButton").handlers.click();
+  assert.strictEqual(elements.get("#installHelpDialog").open, true);
+  elements.get("#closeInstallHelpButton").handlers.click();
+  assert.strictEqual(elements.get("#installHelpDialog").open, false);
+
   await elements.get("#startButton").handlers.click();
   assert.strictEqual(elements.get("#setupRequiredDialog").open, true);
   elements.get("#closeSetupDialogButton").handlers.click();
@@ -152,6 +181,16 @@ async function recordExample(voiceBlocks = 8) {
   elements.get("#phraseButton").handlers.click();
   assert.strictEqual(elements.get("#phraseDisplay").textContent, "My Dhikr");
   assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+
+  elements.get("#counterValueInput").value = "50";
+  elements.get("#setCounterButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 50);
+  elements.get("#incrementButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 51);
+  elements.get("#decrementButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 50);
+  elements.get("#resetButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 0);
 
   await recordExample();
   assert.strictEqual(elements.get("#setupProgress").textContent, "1 of 3");
@@ -175,6 +214,8 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(elements.get("#goalProgress").textContent, "0 / 1 - 1 remaining");
 
   await elements.get("#startButton").handlers.click();
+  await Promise.resolve();
+  assert.strictEqual(wakeLockRequests, 1);
 
   const snapBlock = new Float32Array(4096);
   snapBlock[100] = 0.9;
@@ -215,6 +256,7 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(elements.get("#startButton").disabled, true);
 
   elements.get("#stopButton").handlers.click();
+  assert.strictEqual(wakeLockReleases, 1);
   assert.strictEqual(elements.get("#micLevelText").textContent, "Off");
   assert.strictEqual(microphoneStops, 3);
 

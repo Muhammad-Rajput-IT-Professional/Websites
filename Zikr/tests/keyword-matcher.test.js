@@ -24,6 +24,7 @@ function element() {
 const elements = new Map();
 for (const selector of [
   "#counter", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
+  "#decrementButton", "#incrementButton", "#counterValueInput", "#setCounterButton",
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
   "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
@@ -32,6 +33,7 @@ for (const selector of [
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
+  "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
 ]) {
   elements.set(selector, element());
 }
@@ -42,7 +44,11 @@ const sandbox = {
     addEventListener() {},
     localStorage: { getItem() { return null; }, setItem() {} },
   },
-  document: { querySelector: (selector) => elements.get(selector) },
+  document: {
+    visibilityState: "visible",
+    addEventListener() {},
+    querySelector: (selector) => elements.get(selector),
+  },
   navigator: {},
   console,
   Float32Array,
