@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f6b5f" />
+    <title>Dhikr Counter</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app" aria-labelledby="app-title">
+      <section class="counter-panel">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Phrase microphone counter</p>
+            <h1 id="app-title">Dhikr Counter</h1>
+          </div>
+          <div id="statusBadge" class="status waiting" role="status" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="statusText">Waiting</span>
+          </div>
+        </div>
+
+        <div class="counter-wrap" aria-live="polite">
+          <p class="counter-label">Repetitions</p>
+          <div id="counter" class="counter">0</div>
+          <p class="phrase-label">Current dhikr: <strong id="phraseDisplay">Astaghfirullah</strong></p>
+        </div>
+
+        <div class="phrase-control">
+          <label for="phraseInput">Dhikr phrase</label>
+          <div class="phrase-input-row">
+            <input id="phraseInput" type="text" value="Astaghfirullah" maxlength="60" autocomplete="off" />
+            <button id="phraseButton" class="button phrase-button" type="button">Use phrase</button>
+          </div>
+        </div>
+
+        <section class="setup-panel" aria-labelledby="setupTitle">
+          <div class="setup-heading">
+            <h2 id="setupTitle">Voice setup</h2>
+            <span id="setupProgress">0 of 3</span>
+          </div>
+          <p id="setupHint">Record the phrase three times so this device can learn your pronunciation.</p>
+          <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
+        </section>
+
+        <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
+
+        <div class="mic-meter" aria-label="Microphone input level">
+          <div class="mic-meter-head">
+            <span>Microphone level</span>
+            <span id="micLevelText">Off</span>
+          </div>
+          <div
+            id="micMeterTrack"
+            class="mic-meter-track"
+            role="meter"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <span id="micMeterFill" class="mic-meter-fill"></span>
+          </div>
+        </div>
+
+        <div class="controls" aria-label="Microphone controls">
+          <button id="startButton" class="button primary" type="button" disabled>Start Listening</button>
+          <button id="stopButton" class="button secondary" type="button" disabled>Stop Listening</button>
+          <button id="resetButton" class="button ghost" type="button">Reset Counter</button>
+        </div>
+
+        <p class="privacy-note">
+          Audio is converted to temporary sound fingerprints on this device. Nothing is recorded,
+          saved, or uploaded. Voice setup resets when the page is refreshed.
+        </p>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/meyda@5.6.3/dist/web/meyda.min.js"></script>
+    <script src="./app.js?v=8"></script>
+  </body>
+</html>
