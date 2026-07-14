@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -37,14 +41,17 @@ button {
 }
 
 .app {
+  width: 100%;
   min-height: 100svh;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom));
 }
 
 .counter-panel {
-  width: min(100%, 28rem);
+  width: 100%;
+  max-width: 28rem;
   min-width: 0;
   min-height: min(43rem, calc(100svh - 2rem));
   display: flex;
@@ -185,6 +192,64 @@ h1 {
   background: #edf4f1;
 }
 
+.goal-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  background: #fff;
+}
+
+.goal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.goal-heading span {
+  color: var(--primary-dark);
+  text-align: right;
+}
+
+.goal-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.goal-controls input {
+  min-width: 0;
+  min-height: 2.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+}
+
+.goal-button,
+.goal-clear-button {
+  min-height: 2.9rem;
+  padding-inline: 0.85rem;
+}
+
+.goal-button {
+  color: #fff;
+  background: #2e3b38;
+}
+
+.goal-clear-button {
+  grid-column: 1 / -1;
+  color: var(--primary-dark);
+  background: #edf4f1;
+}
+
 .privacy-note {
   margin: 0;
   color: var(--muted);
@@ -206,6 +271,44 @@ h1 {
   gap: 0.45rem;
 }
 
+.phrase-picker {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.field-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.phrase-presets {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.preset-button {
+  min-height: 3rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.8rem;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.preset-button.selected {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: #e6f2ee;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
 .phrase-control label {
   color: var(--muted);
   font-size: 0.82rem;
@@ -214,7 +317,7 @@ h1 {
 
 .phrase-input-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
 }
 
@@ -300,6 +403,47 @@ h1 {
   background: #e6f2ee;
 }
 
+.setup-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.restart-setup-button {
+  min-height: 2.9rem;
+  color: #713a12;
+  background: #fff1df;
+}
+
+.setup-dialog {
+  width: min(calc(100% - 2rem), 24rem);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 1.1rem;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.setup-dialog::backdrop {
+  background: rgba(24, 33, 31, 0.56);
+}
+
+.setup-dialog h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1.15rem;
+}
+
+.setup-dialog p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.setup-dialog .button {
+  width: 100%;
+}
+
 .mic-meter {
   display: grid;
   gap: 0.45rem;
@@ -344,5 +488,17 @@ h1 {
 
   .ghost {
     grid-column: 1 / -1;
+  }
+
+  .phrase-presets {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #customPhraseButton {
+    grid-column: 1 / -1;
+  }
+
+  .phrase-input-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }

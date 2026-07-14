@@ -11,6 +11,11 @@ function createElement() {
     className: "",
     disabled: false,
     focus() {},
+    hidden: false,
+    open: false,
+    close() { this.open = false; },
+    showModal() { this.open = true; },
+    scrollIntoView() {},
     style: {},
     textContent: "",
     value: "",
@@ -22,15 +27,19 @@ function createElement() {
 const elements = new Map();
 for (const selector of [
   "#counter", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
+  "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
+  "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
+  "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
 ]) {
   elements.set(selector, createElement());
 }
 
 let currentProcessor;
 let microphoneStops = 0;
+const savedValues = new Map();
 
 function audioNode() {
   return { connect() {}, disconnect() {} };
@@ -82,6 +91,10 @@ const fakeWindow = {
   Meyda,
   AudioContext: FakeAudioContext,
   addEventListener() {},
+  localStorage: {
+    getItem(key) { return savedValues.get(key) || null; },
+    setItem(key, value) { savedValues.set(key, String(value)); },
+  },
 };
 const sandbox = {
   window: fakeWindow,
@@ -119,9 +132,22 @@ async function recordExample(voiceBlocks = 8) {
 }
 
 (async () => {
-  elements.get("#phraseInput").value = "SubhanAllah";
+  await elements.get("#startButton").handlers.click();
+  assert.strictEqual(elements.get("#setupRequiredDialog").open, true);
+  elements.get("#closeSetupDialogButton").handlers.click();
+  elements.get("#stopButton").handlers.click();
+  assert.strictEqual(elements.get("#setupRequiredDialog").open, true);
+  elements.get("#closeSetupDialogButton").handlers.click();
+
+  elements.get("#customPhraseButton").handlers.click();
+  elements.get("#phraseInput").value = "My Dhikr";
   elements.get("#phraseButton").handlers.click();
-  assert.strictEqual(elements.get("#phraseDisplay").textContent, "SubhanAllah");
+  assert.strictEqual(elements.get("#phraseDisplay").textContent, "My Dhikr");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+
+  await recordExample();
+  assert.strictEqual(elements.get("#setupProgress").textContent, "1 of 3");
+  elements.get("#restartSetupButton").handlers.click();
   assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
 
   await recordExample();
@@ -130,7 +156,11 @@ async function recordExample(voiceBlocks = 8) {
 
   assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
   assert.strictEqual(elements.get("#startButton").disabled, false);
-  assert.strictEqual(microphoneStops, 1);
+  assert.strictEqual(microphoneStops, 2);
+
+  elements.get("#goalInput").value = "1";
+  elements.get("#setGoalButton").handlers.click();
+  assert.strictEqual(elements.get("#goalProgress").textContent, "0 / 1 - 1 remaining");
 
   await elements.get("#startButton").handlers.click();
 
@@ -143,6 +173,10 @@ async function recordExample(voiceBlocks = 8) {
 
   assert(Number(elements.get("#counter").textContent) >= 1);
   const normalCount = Number(elements.get("#counter").textContent);
+  assert.strictEqual(elements.get("#goalProgress").textContent, "1 reached");
+
+  for (let block = 0; block < 8; block += 1) currentProcessor.emit(silenceBlock);
+  assert.strictEqual(Number(elements.get("#counter").textContent), normalCount);
 
   for (let block = 0; block < 36; block += 1) currentProcessor.emit(voiceBlock(block % 6));
   const fastCount = Number(elements.get("#counter").textContent);
@@ -155,7 +189,23 @@ async function recordExample(voiceBlocks = 8) {
 
   elements.get("#stopButton").handlers.click();
   assert.strictEqual(elements.get("#micLevelText").textContent, "Off");
-  assert.strictEqual(microphoneStops, 2);
+  assert.strictEqual(microphoneStops, 3);
+
+  const saved = JSON.parse(savedValues.get("dhikr-counter-profiles-v1"));
+  assert.strictEqual(saved.profiles["custom:my dhikr"].count, slowCount);
+  assert.strictEqual(saved.profiles["custom:my dhikr"].goal, 1);
+  assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 3);
+
+  elements.get("#presetSubhanallah").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 0);
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+
+  elements.get("#customPhraseButton").handlers.click();
+  elements.get("#phraseInput").value = "My Dhikr";
+  elements.get("#phraseButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), slowCount);
+  assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
+  assert.strictEqual(elements.get("#startButton").disabled, false);
 
   console.log("Listening flow tests passed");
 })().catch((error) => {

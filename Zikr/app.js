@@ -15,6 +15,7 @@
     mfccHopSize: 160,
     dtwBandRatio: 0.28,
     refractoryRatio: 0.72,
+    minimumNewVoicedRatio: 0.65,
     minimumActiveMs: 300,
     minimumContinuousVoiceMs: 150,
     minimumActiveRatio: 0.26,
@@ -23,14 +24,29 @@
     requiredMatchConfirmations: 1,
   });
 
+  const STORAGE_KEY = "dhikr-counter-profiles-v1";
+  const PRESETS = Object.freeze({
+    astaghfirullah: { label: "أَسْتَغْفِرُ اللَّهَ" },
+    subhanallah_wabihamdihi: { label: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ" },
+  });
+
   const counterEl = document.querySelector("#counter");
   const startButton = document.querySelector("#startButton");
   const stopButton = document.querySelector("#stopButton");
   const resetButton = document.querySelector("#resetButton");
+  const goalInput = document.querySelector("#goalInput");
+  const setGoalButton = document.querySelector("#setGoalButton");
+  const clearGoalButton = document.querySelector("#clearGoalButton");
+  const goalProgress = document.querySelector("#goalProgress");
   const phraseInput = document.querySelector("#phraseInput");
   const phraseButton = document.querySelector("#phraseButton");
   const phraseDisplay = document.querySelector("#phraseDisplay");
+  const presetAstaghfirullah = document.querySelector("#presetAstaghfirullah");
+  const presetSubhanallah = document.querySelector("#presetSubhanallah");
+  const customPhraseButton = document.querySelector("#customPhraseButton");
+  const customPhraseControl = document.querySelector("#customPhraseControl");
   const calibrateButton = document.querySelector("#calibrateButton");
+  const restartSetupButton = document.querySelector("#restartSetupButton");
   const setupProgress = document.querySelector("#setupProgress");
   const setupHint = document.querySelector("#setupHint");
   const statusBadge = document.querySelector("#statusBadge");
@@ -39,6 +55,8 @@
   const micMeterTrack = document.querySelector("#micMeterTrack");
   const micMeterFill = document.querySelector("#micMeterFill");
   const micLevelText = document.querySelector("#micLevelText");
+  const setupRequiredDialog = document.querySelector("#setupRequiredDialog");
+  const closeSetupDialogButton = document.querySelector("#closeSetupDialogButton");
 
   const statusLabels = {
     waiting: "Waiting",
@@ -50,7 +68,11 @@
   };
 
   let count = 0;
-  let activePhrase = "Astaghfirullah";
+  let goal = 0;
+  let goalCelebrated = false;
+  let activeProfileKey = "astaghfirullah";
+  let activePhrase = PRESETS.astaghfirullah.label;
+  let profiles = {};
   let mode = "idle";
   let microphoneStream = null;
   let audioContext = null;
@@ -74,6 +96,87 @@
   let lastDetectionTime = -Infinity;
   let matchCandidateStreak = 0;
   let lastCandidateTime = -Infinity;
+  let voicedSamplesSinceDetection = Infinity;
+
+  function validTemplates(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter((template) => (
+      template
+      && Array.isArray(template.fingerprint)
+      && template.fingerprint.length >= 12
+      && Number.isFinite(template.durationSamples)
+      && template.durationSamples > 0
+    )).slice(0, CONFIG.requiredExamples);
+  }
+
+  function saveCurrentProfile() {
+    profiles[activeProfileKey] = {
+      label: activePhrase,
+      count,
+      goal,
+      templates,
+    };
+  }
+
+  function persistState() {
+    saveCurrentProfile();
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeProfileKey, profiles }));
+    } catch (_) {
+      // Counting still works when storage is blocked or full.
+    }
+  }
+
+  function loadPersistedState() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+      if (!saved || !saved.profiles || typeof saved.profiles !== "object" || Array.isArray(saved.profiles)) return;
+      profiles = saved.profiles;
+      if (typeof saved.activeProfileKey === "string" && profiles[saved.activeProfileKey]) {
+        activeProfileKey = saved.activeProfileKey;
+      }
+    } catch (_) {
+      profiles = {};
+    }
+  }
+
+  function updatePhrasePickerUi() {
+    presetAstaghfirullah.className = `preset-button${activeProfileKey === "astaghfirullah" ? " selected" : ""}`;
+    presetSubhanallah.className = `preset-button${activeProfileKey === "subhanallah_wabihamdihi" ? " selected" : ""}`;
+    const customSelected = activeProfileKey.startsWith("custom:");
+    customPhraseButton.className = `preset-button${customSelected ? " selected" : ""}`;
+    customPhraseControl.hidden = !customSelected;
+    if (customSelected) phraseInput.value = activePhrase;
+  }
+
+  function loadProfile(key, fallbackLabel, savePrevious = true) {
+    if (savePrevious) saveCurrentProfile();
+    mode = "idle";
+    stopMicrophone();
+
+    activeProfileKey = key;
+    const profile = profiles[key] || {};
+    activePhrase = typeof profile.label === "string" && profile.label.trim()
+      ? profile.label.trim()
+      : fallbackLabel;
+    count = Number.isFinite(profile.count) && profile.count >= 0 ? Math.floor(profile.count) : 0;
+    goal = Number.isFinite(profile.goal) && profile.goal > 0 ? Math.floor(profile.goal) : 0;
+    goalCelebrated = goal > 0 && count >= goal;
+    templates = validTemplates(profile.templates);
+    resetListeningState();
+    if (templates.length >= CONFIG.requiredExamples) finalizeVoiceSetup();
+
+    phraseDisplay.textContent = activePhrase;
+    updateCounter();
+    updateGoalUi();
+    setStatus("waiting");
+    updatePhrasePickerUi();
+    updateSetupUi();
+    heardText.textContent = templates.length >= CONFIG.requiredExamples
+      ? "Voice setup is ready. Press Start Listening."
+      : `Record three examples of "${activePhrase}" to begin.`;
+    persistState();
+  }
 
   function setStatus(status) {
     statusBadge.className = `status ${status}`;
@@ -82,6 +185,22 @@
 
   function updateCounter() {
     counterEl.textContent = String(count);
+    updateGoalUi();
+  }
+
+  function updateGoalUi() {
+    if (!goal) {
+      goalInput.value = "";
+      goalProgress.textContent = "No target set";
+      clearGoalButton.hidden = true;
+      return;
+    }
+    const remaining = Math.max(0, goal - count);
+    goalInput.value = String(goal);
+    goalProgress.textContent = remaining
+      ? `${count} / ${goal} - ${remaining} remaining`
+      : `${goal} reached`;
+    clearGoalButton.hidden = false;
   }
 
   function updateSetupUi() {
@@ -89,10 +208,9 @@
     setupProgress.textContent = `${Math.min(templates.length, CONFIG.requiredExamples)} of ${CONFIG.requiredExamples}`;
 
     if (completed) {
-      setupHint.textContent = "Voice setup complete for this session.";
+      setupHint.textContent = "Voice setup saved on this device.";
       calibrateButton.textContent = "Redo voice setup";
       calibrateButton.disabled = false;
-      startButton.disabled = mode === "listening";
     } else {
       if (templates.length === 1) {
         setupHint.textContent = `For example 2, say "${activePhrase}" slowly, then pause.`;
@@ -103,8 +221,16 @@
       }
       calibrateButton.textContent = `Record example ${templates.length + 1}`;
       calibrateButton.disabled = mode === "calibrating" || mode === "starting";
-      startButton.disabled = true;
     }
+    startButton.disabled = mode === "listening" || mode === "starting" || mode === "calibrating";
+    stopButton.disabled = false;
+  }
+
+  function showSetupRequired() {
+    if (typeof setupRequiredDialog.showModal === "function" && !setupRequiredDialog.open) {
+      setupRequiredDialog.showModal();
+    }
+    else heardText.textContent = "Complete all three voice setup recordings first.";
   }
 
   async function ensureMicrophone() {
@@ -217,6 +343,7 @@
       durationSamples: downsampled.length,
       speechShape: analyzeSpeechShape(downsampled),
     });
+    persistState();
     mode = "idle";
 
     if (templates.length >= CONFIG.requiredExamples) {
@@ -225,7 +352,7 @@
       setStatus("waiting");
       stopMicrophone();
     } else {
-      heardText.textContent = `Example ${templates.length} saved in memory.`;
+      heardText.textContent = `Example ${templates.length} saved on this device.`;
       setStatus("waiting");
     }
     updateSetupUi();
@@ -252,8 +379,17 @@
     );
     samplesSinceAnalysis += downsampled.length;
     listeningTimeMs += (downsampled.length / CONFIG.outputSampleRate) * 1000;
+    if (hasVoiceEnergy && Number.isFinite(voicedSamplesSinceDetection)) {
+      voicedSamplesSinceDetection += downsampled.length;
+    }
 
-    if (hasVoiceEnergy) setStatus("speech");
+    if (hasVoiceEnergy) {
+      setStatus("speech");
+    } else {
+      setStatus("listening");
+      matchCandidateStreak = 0;
+      return;
+    }
     const intervalSamples = Math.round((CONFIG.analysisIntervalMs / 1000) * CONFIG.outputSampleRate);
     if (samplesSinceAnalysis < intervalSamples || listeningSamples.length < expectedDurationSamples * 0.8) return;
     samplesSinceAnalysis = 0;
@@ -287,11 +423,12 @@
     const now = listeningTimeMs;
     const matchedDurationMs = (bestDurationSamples / CONFIG.outputSampleRate) * 1000;
     const outsideRefractory = now - lastDetectionTime >= matchedDurationMs * CONFIG.refractoryRatio;
+    const enoughNewVoice = voicedSamplesSinceDetection >= bestDurationSamples * CONFIG.minimumNewVoicedRatio;
 
     const candidateMatched = bestShape && bestDistance <= matchThreshold;
     const confirmationWindowMs = CONFIG.analysisIntervalMs * 2.8;
 
-    if (candidateMatched && outsideRefractory) {
+    if (candidateMatched && outsideRefractory && enoughNewVoice) {
       matchCandidateStreak = now - lastCandidateTime <= confirmationWindowMs
         ? matchCandidateStreak + 1
         : 1;
@@ -300,11 +437,14 @@
       if (matchCandidateStreak >= CONFIG.requiredMatchConfirmations) {
         lastDetectionTime = now;
         matchCandidateStreak = 0;
+        voicedSamplesSinceDetection = 0;
         count += 1;
         updateCounter();
+        persistState();
         setStatus("speech");
         heardText.textContent = `${activePhrase} matched.`;
-        if ("vibrate" in navigator) navigator.vibrate(30);
+        const reachedGoal = checkGoalReached();
+        if (!reachedGoal && "vibrate" in navigator) navigator.vibrate(30);
       }
     } else if (outsideRefractory) {
       matchCandidateStreak = 0;
@@ -466,6 +606,51 @@
     updateSetupUi();
   }
 
+  function resetListeningState() {
+    expectedDurationSamples = 0;
+    matchThreshold = 0.9;
+    listeningSamples = new Float32Array(0);
+    samplesSinceAnalysis = 0;
+    listeningTimeMs = 0;
+    lastDetectionTime = -Infinity;
+    matchCandidateStreak = 0;
+    lastCandidateTime = -Infinity;
+    voicedSamplesSinceDetection = Infinity;
+    resetCalibrationCapture();
+  }
+
+  function playGoalSound() {
+    try {
+      if (!audioContext || audioContext.state !== "running") return;
+      const startAt = audioContext.currentTime;
+      [523.25, 659.25, 783.99].forEach((frequency, index) => {
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const noteStart = startAt + index * 0.14;
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, noteStart);
+        gain.gain.exponentialRampToValueAtTime(0.16, noteStart + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.22);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(noteStart);
+        oscillator.stop(noteStart + 0.23);
+      });
+    } catch (_) {
+      // Vibration and the on-screen message still signal completion.
+    }
+  }
+
+  function checkGoalReached() {
+    if (!goal || count < goal || goalCelebrated) return false;
+    goalCelebrated = true;
+    playGoalSound();
+    heardText.textContent = `Target of ${goal} reached.`;
+    if ("vibrate" in navigator) navigator.vibrate([120, 70, 180]);
+    persistState();
+    return true;
+  }
+
   function stopMicrophone() {
     if (processorNode) {
       processorNode.removeEventListener("audioprocess", handleAudioProcess);
@@ -547,7 +732,10 @@
   }
 
   async function beginCalibration() {
-    if (templates.length >= CONFIG.requiredExamples) resetVoiceSetup();
+    if (templates.length >= CONFIG.requiredExamples) {
+      resetVoiceSetup();
+      persistState();
+    }
     mode = "starting";
     setStatus("starting");
     calibrateButton.disabled = true;
@@ -571,6 +759,23 @@
 
   calibrateButton.addEventListener("click", beginCalibration);
 
+  restartSetupButton.addEventListener("click", () => {
+    mode = "idle";
+    stopMicrophone();
+    resetVoiceSetup();
+    persistState();
+    setStatus("waiting");
+    heardText.textContent = `Voice setup restarted for "${activePhrase}". Record example 1.`;
+  });
+
+  closeSetupDialogButton.addEventListener("click", () => {
+    setupRequiredDialog.close();
+    const setupPanel = document.querySelector("#setupTitle");
+    if (setupPanel && typeof setupPanel.scrollIntoView === "function") {
+      setupPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+
   function applyPhrase() {
     const nextPhrase = phraseInput.value.trim();
     if (!nextPhrase) {
@@ -578,18 +783,8 @@
       phraseInput.focus();
       return;
     }
-    if (nextPhrase === activePhrase) return;
-
-    mode = "idle";
-    stopMicrophone();
-    activePhrase = nextPhrase;
-    phraseDisplay.textContent = activePhrase;
-    count = 0;
-    updateCounter();
-    stopButton.disabled = true;
-    setStatus("waiting");
-    resetVoiceSetup();
-    heardText.textContent = `Record three examples of "${activePhrase}" to begin.`;
+    const key = `custom:${nextPhrase.toLocaleLowerCase()}`;
+    loadProfile(key, nextPhrase);
   }
 
   phraseButton.addEventListener("click", applyPhrase);
@@ -597,8 +792,24 @@
     if (event.key === "Enter") applyPhrase();
   });
 
+  presetAstaghfirullah.addEventListener("click", () => {
+    loadProfile("astaghfirullah", PRESETS.astaghfirullah.label);
+  });
+
+  presetSubhanallah.addEventListener("click", () => {
+    loadProfile("subhanallah_wabihamdihi", PRESETS.subhanallah_wabihamdihi.label);
+  });
+
+  customPhraseButton.addEventListener("click", () => {
+    customPhraseControl.hidden = false;
+    phraseInput.focus();
+  });
+
   startButton.addEventListener("click", async () => {
-    if (templates.length < CONFIG.requiredExamples) return;
+    if (templates.length < CONFIG.requiredExamples) {
+      showSetupRequired();
+      return;
+    }
     mode = "starting";
     setStatus("starting");
     startButton.disabled = true;
@@ -612,6 +823,7 @@
       lastDetectionTime = -Infinity;
       matchCandidateStreak = 0;
       lastCandidateTime = -Infinity;
+      voicedSamplesSinceDetection = Infinity;
       setStatus("listening");
       stopButton.disabled = false;
       heardText.textContent = "Listening for your calibrated phrase...";
@@ -625,17 +837,27 @@
   });
 
   stopButton.addEventListener("click", () => {
+    if (templates.length < CONFIG.requiredExamples) {
+      showSetupRequired();
+      return;
+    }
+    if (mode !== "listening") {
+      heardText.textContent = "The microphone is not currently listening.";
+      return;
+    }
     mode = "idle";
     stopMicrophone();
-    stopButton.disabled = true;
     setStatus("waiting");
     heardText.textContent = "Listening stopped.";
     updateSetupUi();
+    persistState();
   });
 
   resetButton.addEventListener("click", () => {
     count = 0;
+    goalCelebrated = false;
     updateCounter();
+    persistState();
     heardText.textContent = mode === "listening"
       ? "Listening for your calibrated phrase..."
       : templates.length >= CONFIG.requiredExamples
@@ -643,13 +865,50 @@
         : "Complete voice setup to begin.";
   });
 
-  window.addEventListener("pagehide", () => {
-    mode = "idle";
-    stopMicrophone();
-    templates = [];
+  function setGoal() {
+    const nextGoal = Number.parseInt(goalInput.value, 10);
+    if (!Number.isFinite(nextGoal) || nextGoal < 1 || nextGoal > 100000) {
+      heardText.textContent = "Enter a target between 1 and 100,000.";
+      goalInput.focus();
+      return;
+    }
+    goal = nextGoal;
+    goalCelebrated = false;
+    goalInput.value = String(goal);
+    updateGoalUi();
+    persistState();
+    heardText.textContent = `Target set to ${goal}.`;
+    checkGoalReached();
+  }
+
+  setGoalButton.addEventListener("click", setGoal);
+  goalInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") setGoal();
   });
 
-  updateSetupUi();
+  clearGoalButton.addEventListener("click", () => {
+    goal = 0;
+    goalCelebrated = false;
+    goalInput.value = "";
+    updateGoalUi();
+    persistState();
+    heardText.textContent = "Target cleared.";
+  });
+
+  window.addEventListener("pagehide", () => {
+    persistState();
+    mode = "idle";
+    stopMicrophone();
+  });
+
+  loadPersistedState();
+  const initialPreset = PRESETS[activeProfileKey];
+  const initialProfile = profiles[activeProfileKey];
+  loadProfile(
+    activeProfileKey,
+    initialPreset ? initialPreset.label : initialProfile && initialProfile.label || "Custom dhikr",
+    false,
+  );
 
   window.DhikrKeywordMatcher = {
     normalizeFeatureSequence,

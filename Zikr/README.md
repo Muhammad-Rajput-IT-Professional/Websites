@@ -2,9 +2,11 @@
 
 A simple static web app that counts dhikr repetitions from microphone input.
 
-The current version uses personalized keyword spotting instead of speech recognition. The user can name any dhikr phrase, then records one natural, one slow, and one fast example during a quick voice setup. The app converts them into temporary MFCC sound fingerprints, then compares rolling microphone windows at several speeds while the user continues speaking.
+The current version uses personalized keyword spotting instead of speech recognition. It includes Arabic presets for Astaghfirullah and SubhanAllahi wa bihamdihi, plus a custom phrase option. For each dhikr, the user records one natural, one slow, and one fast example during a quick voice setup. The setup can be restarted at any point. The app converts the examples into MFCC sound fingerprints, then compares rolling microphone windows at several speeds while the user continues speaking.
 
-Audio and fingerprints remain in memory and are discarded on refresh. Nothing is recorded, saved, or uploaded. The app has no paid services or custom backend and can be hosted on GitHub Pages. Browser support is best in current Chrome or Edge; microphone access requires HTTPS (as provided by GitHub Pages) or `localhost`.
+Each dhikr can also have its own target count. Reaching the target plays a short local chime, vibrates supported phones, and displays a completion message.
+
+Audio is never recorded, saved, or uploaded. Counts and derived sound fingerprints are stored in the browser's local storage so each phrase remains ready after refresh. The data stays on that browser and device and is removed if the user clears site data. The app has no paid services or custom backend and can be hosted on GitHub Pages. Browser support is best in current Chrome or Edge; microphone access requires HTTPS (as provided by GitHub Pages) or `localhost`.
 
 ## Run locally
 

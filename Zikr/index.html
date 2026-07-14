@@ -24,14 +24,40 @@
         <div class="counter-wrap" aria-live="polite">
           <p class="counter-label">Repetitions</p>
           <div id="counter" class="counter">0</div>
-          <p class="phrase-label">Current dhikr: <strong id="phraseDisplay">Astaghfirullah</strong></p>
+          <p class="phrase-label" dir="auto">Current dhikr: <strong id="phraseDisplay">أَسْتَغْفِرُ اللَّهَ</strong></p>
         </div>
 
-        <div class="phrase-control">
-          <label for="phraseInput">Dhikr phrase</label>
-          <div class="phrase-input-row">
-            <input id="phraseInput" type="text" value="Astaghfirullah" maxlength="60" autocomplete="off" />
-            <button id="phraseButton" class="button phrase-button" type="button">Use phrase</button>
+        <div class="controls" aria-label="Counter controls">
+          <button id="startButton" class="button primary" type="button">Start Listening</button>
+          <button id="stopButton" class="button secondary" type="button">Stop Listening</button>
+          <button id="resetButton" class="button ghost" type="button">Reset Counter</button>
+        </div>
+
+        <section class="goal-panel" aria-labelledby="goalTitle">
+          <div class="goal-heading">
+            <label id="goalTitle" for="goalInput">Target count</label>
+            <span id="goalProgress">No target set</span>
+          </div>
+          <div class="goal-controls">
+            <input id="goalInput" type="number" min="1" max="100000" inputmode="numeric" placeholder="e.g. 100" />
+            <button id="setGoalButton" class="button goal-button" type="button">Set target</button>
+            <button id="clearGoalButton" class="button goal-clear-button" type="button" hidden>Clear</button>
+          </div>
+        </section>
+
+        <div class="phrase-picker" aria-labelledby="phrasePickerTitle">
+          <p id="phrasePickerTitle" class="field-label">Choose dhikr</p>
+          <div class="phrase-presets">
+            <button id="presetAstaghfirullah" class="preset-button selected" type="button" dir="rtl">أَسْتَغْفِرُ اللَّهَ</button>
+            <button id="presetSubhanallah" class="preset-button" type="button" dir="rtl">سُبْحَانَ اللَّهِ وَبِحَمْدِهِ</button>
+            <button id="customPhraseButton" class="preset-button" type="button">Other / Custom</button>
+          </div>
+          <div id="customPhraseControl" class="phrase-control" hidden>
+            <label for="phraseInput">Custom phrase name</label>
+            <div class="phrase-input-row">
+              <input id="phraseInput" type="text" maxlength="60" autocomplete="off" placeholder="Enter a dhikr phrase" />
+              <button id="phraseButton" class="button phrase-button" type="button">Use phrase</button>
+            </div>
           </div>
         </div>
 
@@ -41,7 +67,10 @@
             <span id="setupProgress">0 of 3</span>
           </div>
           <p id="setupHint">Record the phrase three times so this device can learn your pronunciation.</p>
-          <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
+          <div class="setup-actions">
+            <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
+            <button id="restartSetupButton" class="button restart-setup-button" type="button">Restart setup</button>
+          </div>
         </section>
 
         <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
@@ -63,20 +92,20 @@
           </div>
         </div>
 
-        <div class="controls" aria-label="Microphone controls">
-          <button id="startButton" class="button primary" type="button" disabled>Start Listening</button>
-          <button id="stopButton" class="button secondary" type="button" disabled>Stop Listening</button>
-          <button id="resetButton" class="button ghost" type="button">Reset Counter</button>
-        </div>
-
         <p class="privacy-note">
-          Audio is converted to temporary sound fingerprints on this device. Nothing is recorded,
-          saved, or uploaded. Voice setup resets when the page is refreshed.
+          Audio is never recorded or uploaded. Counts and sound fingerprints are saved only in
+          this browser so each dhikr remains ready after refresh.
         </p>
       </section>
     </main>
 
+    <dialog id="setupRequiredDialog" class="setup-dialog" aria-labelledby="setupDialogTitle">
+      <h2 id="setupDialogTitle">Voice setup required</h2>
+      <p>Record all three voice examples for this dhikr before starting or stopping the counter.</p>
+      <button id="closeSetupDialogButton" class="button primary" type="button">Go to voice setup</button>
+    </dialog>
+
     <script src="https://unpkg.com/meyda@5.6.3/dist/web/meyda.min.js"></script>
-    <script src="./app.js?v=8"></script>
+    <script src="./app.js?v=10"></script>
   </body>
 </html>

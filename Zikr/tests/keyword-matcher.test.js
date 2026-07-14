@@ -9,6 +9,11 @@ function element() {
     className: "",
     disabled: false,
     focus() {},
+    hidden: false,
+    open: false,
+    close() { this.open = false; },
+    showModal() { this.open = true; },
+    scrollIntoView() {},
     setAttribute() {},
     style: {},
     textContent: "",
@@ -19,16 +24,22 @@ function element() {
 const elements = new Map();
 for (const selector of [
   "#counter", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
+  "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
+  "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
+  "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
 ]) {
   elements.set(selector, element());
 }
 
 const source = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 const sandbox = {
-  window: { addEventListener() {} },
+  window: {
+    addEventListener() {},
+    localStorage: { getItem() { return null; }, setItem() {} },
+  },
   document: { querySelector: (selector) => elements.get(selector) },
   navigator: {},
   console,
