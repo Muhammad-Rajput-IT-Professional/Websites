@@ -10,7 +10,8 @@
     minimumThreshold: 0.012,
     noiseMultiplier: 2.8,
     meterBoost: 4.5,
-    analysisIntervalMs: 120,
+    analysisIntervalMs: 80,
+    detectionLookbackMs: 280,
     listeningBufferResetSilenceMs: 160,
     backgroundCalibrationMs: 4000,
     calibratedNoiseMultiplier: 1.65,
@@ -18,8 +19,8 @@
     mfccFrameSize: 512,
     mfccHopSize: 160,
     dtwBandRatio: 0.28,
-    refractoryRatio: 0.62,
-    minimumNewVoicedRatio: 0.52,
+    refractoryRatio: 0.58,
+    minimumNewVoicedRatio: 0.42,
     minimumActiveMs: 220,
     minimumContinuousVoiceMs: 110,
     minimumActiveRatio: 0.22,
@@ -78,6 +79,11 @@
   const installHelpDialog = document.querySelector("#installHelpDialog");
   const installHelpText = document.querySelector("#installHelpText");
   const closeInstallHelpButton = document.querySelector("#closeInstallHelpButton");
+  const settingsButton = document.querySelector("#settingsButton");
+  const settingsDialog = document.querySelector("#settingsDialog");
+  const countSoundToggle = document.querySelector("#countSoundToggle");
+  const darkModeToggle = document.querySelector("#darkModeToggle");
+  const closeSettingsButton = document.querySelector("#closeSettingsButton");
 
   const statusLabels = {
     waiting: "Waiting",
@@ -105,6 +111,8 @@
   let wakeLock = null;
   let wakeLockDesired = false;
   let deferredInstallPrompt = null;
+  let countSoundEnabled = false;
+  let darkModeEnabled = false;
   let noiseFloor = 0.004;
   let backgroundNoiseLevel = 0;
   let backgroundCalibrationFrames = 0;
@@ -156,6 +164,10 @@
         activeProfileKey,
         profiles,
         backgroundNoiseLevel,
+        settings: {
+          countSoundEnabled,
+          darkModeEnabled,
+        },
       }));
     } catch (_) {
       // Counting still works when storage is blocked or full.
@@ -167,6 +179,10 @@
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
       if (!saved || !saved.profiles || typeof saved.profiles !== "object" || Array.isArray(saved.profiles)) return;
       profiles = saved.profiles;
+      if (saved.settings && typeof saved.settings === "object") {
+        countSoundEnabled = saved.settings.countSoundEnabled === true;
+        darkModeEnabled = saved.settings.darkModeEnabled === true;
+      }
       if (Number.isFinite(saved.backgroundNoiseLevel) && saved.backgroundNoiseLevel > 0) {
         backgroundNoiseLevel = saved.backgroundNoiseLevel;
         noiseFloor = backgroundNoiseLevel;
@@ -259,6 +275,14 @@
     updateGoalUi();
   }
 
+  function applyDisplaySettings() {
+    document.documentElement.dataset.theme = darkModeEnabled ? "dark" : "light";
+    countSoundToggle.checked = countSoundEnabled;
+    darkModeToggle.checked = darkModeEnabled;
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute("content", darkModeEnabled ? "#101613" : "#0f6b5f");
+  }
+
   function applyManualCount(nextCount, message) {
     count = Math.min(MAX_COUNTER_VALUE, Math.max(0, Math.floor(nextCount)));
     goalCelebrated = goal > 0 && count >= goal;
@@ -282,12 +306,17 @@
     applyManualCount(count - 1, count > 0 ? "Counter reduced by one." : "Counter is already at zero.");
   });
 
-  incrementButton.addEventListener("click", () => {
+  function incrementManually() {
+    const previousCount = count;
     applyManualCount(
       count + 1,
       count < MAX_COUNTER_VALUE ? "Counter increased by one." : "Counter is at its maximum value.",
     );
-  });
+    if (count > previousCount) playCountSound();
+  }
+
+  incrementButton.addEventListener("click", incrementManually);
+  counterEl.addEventListener("click", incrementManually);
 
   setCounterButton.addEventListener("click", setCounterFromInput);
   counterValueInput.addEventListener("keydown", (event) => {
@@ -595,53 +624,103 @@
 
     let bestPreliminaryDistance = Infinity;
     let bestCandidate = null;
+    let bestNearestTemplate = null;
     let bestShape = null;
     let bestDurationSamples = expectedDurationSamples;
-    const durationCandidates = new Set(templates.map((template) => template.durationSamples));
-    durationCandidates.add(Math.round(minimumTemplateDurationSamples * 0.85));
-    durationCandidates.add(Math.round(maximumTemplateDurationSamples * 1.1));
+    let bestEndOffsetSamples = 0;
+    const durationCandidates = new Set();
+    const durationSeeds = [
+      expectedDurationSamples,
+      minimumTemplateDurationSamples,
+      maximumTemplateDurationSamples,
+      ...templates.map((template) => template.durationSamples),
+    ];
+    for (const seed of durationSeeds) {
+      [0.62, 0.75, 0.88, 1, 1.12].forEach((scale) => {
+        durationCandidates.add(Math.round(seed * scale));
+      });
+    }
+
+    const lookbackSamples = Math.round((CONFIG.detectionLookbackMs / 1000) * CONFIG.outputSampleRate);
+    const endOffsets = new Set([
+      0,
+      Math.round(CONFIG.analysisIntervalMs * 0.5 / 1000 * CONFIG.outputSampleRate),
+      Math.round(CONFIG.analysisIntervalMs / 1000 * CONFIG.outputSampleRate),
+      Math.round(CONFIG.analysisIntervalMs * 1.5 / 1000 * CONFIG.outputSampleRate),
+      Math.round(CONFIG.analysisIntervalMs * 2 / 1000 * CONFIG.outputSampleRate),
+      lookbackSamples,
+    ]);
 
     const sampleCounts = [...durationCandidates]
       .map((requestedSampleCount) => Math.min(listeningSamples.length, requestedSampleCount))
       .filter((sampleCount) => sampleCount >= CONFIG.mfccFrameSize);
+    if (!sampleCounts.length) return;
+
+    const validEndOffsets = [...endOffsets]
+      .filter((offset) => offset >= 0 && offset < listeningSamples.length - CONFIG.mfccFrameSize)
+      .sort((left, right) => left - right);
     const longestSampleCount = Math.max(...sampleCounts);
-    const longestSamples = listeningSamples.slice(listeningSamples.length - longestSampleCount);
+    const longestAnalysisSamples = Math.min(
+      listeningSamples.length,
+      longestSampleCount + Math.max(...validEndOffsets),
+    );
+    const analysisStartSample = listeningSamples.length - longestAnalysisSamples;
+    const longestSamples = listeningSamples.slice(analysisStartSample);
     const rawSequence = extractRawFeatureSequence(longestSamples);
 
-    for (const sampleCount of new Set(sampleCounts)) {
-      const frameCount = Math.floor(
-        (sampleCount - CONFIG.mfccFrameSize) / CONFIG.mfccHopSize,
-      ) + 1;
-      const candidate = normalizeFeatureSequence(rawSequence.slice(-frameCount));
-      if (!candidate.length) continue;
-      const nearestTemplate = templates.reduce(
-        (nearest, template) => (
-          Math.abs(template.durationSamples - sampleCount)
-            < Math.abs(nearest.durationSamples - sampleCount)
-            ? template
-            : nearest
-        ),
-        templates[0],
-      );
-      const preliminaryDistance = dtwDistance(candidate, nearestTemplate.fingerprint);
-      if (preliminaryDistance < bestPreliminaryDistance) {
-        bestPreliminaryDistance = preliminaryDistance;
-        bestCandidate = candidate;
-        bestDurationSamples = sampleCount;
+    for (const endOffsetSamples of validEndOffsets) {
+      const endSample = listeningSamples.length - endOffsetSamples;
+      const endFrame = Math.floor((endSample - analysisStartSample - CONFIG.mfccFrameSize) / CONFIG.mfccHopSize) + 1;
+      if (endFrame <= 0 || endFrame > rawSequence.length) continue;
+
+      for (const sampleCount of new Set(sampleCounts)) {
+        if (sampleCount > endSample) continue;
+        const frameCount = Math.floor(
+          (sampleCount - CONFIG.mfccFrameSize) / CONFIG.mfccHopSize,
+        ) + 1;
+        const startFrame = endFrame - frameCount;
+        if (startFrame < 0) continue;
+
+        const candidate = normalizeFeatureSequence(rawSequence.slice(startFrame, endFrame));
+        if (!candidate.length) continue;
+        const nearestTemplate = templates.reduce(
+          (nearest, template) => (
+            Math.abs(template.durationSamples - sampleCount)
+              < Math.abs(nearest.durationSamples - sampleCount)
+              ? template
+              : nearest
+          ),
+          templates[0],
+        );
+        const preliminaryDistance = dtwDistance(candidate, nearestTemplate.fingerprint);
+        if (preliminaryDistance < bestPreliminaryDistance) {
+          bestPreliminaryDistance = preliminaryDistance;
+          bestCandidate = candidate;
+          bestNearestTemplate = nearestTemplate;
+          bestDurationSamples = sampleCount;
+          bestEndOffsetSamples = endOffsetSamples;
+        }
       }
     }
 
     let bestDistance = Infinity;
     if (bestCandidate) {
-      bestDistance = findTemplateAgreementDistance(bestCandidate, templates);
-      const bestSamples = listeningSamples.slice(listeningSamples.length - bestDurationSamples);
+      bestDistance = findTemplateAgreementDistanceWithKnown(
+        bestCandidate,
+        templates,
+        bestNearestTemplate,
+        bestPreliminaryDistance,
+      );
+      const bestEndSample = listeningSamples.length - bestEndOffsetSamples;
+      const bestSamples = listeningSamples.slice(bestEndSample - bestDurationSamples, bestEndSample);
       const shape = analyzeSpeechShape(bestSamples);
       if (isSpeechLike(shape)) bestShape = shape;
     }
 
     const now = listeningTimeMs;
+    const candidateTime = now - (bestEndOffsetSamples / CONFIG.outputSampleRate) * 1000;
     const matchedDurationMs = (bestDurationSamples / CONFIG.outputSampleRate) * 1000;
-    const outsideRefractory = now - lastDetectionTime >= matchedDurationMs * CONFIG.refractoryRatio;
+    const outsideRefractory = candidateTime - lastDetectionTime >= matchedDurationMs * CONFIG.refractoryRatio;
     const enoughNewVoice = voicedSamplesSinceDetection >= bestDurationSamples * CONFIG.minimumNewVoicedRatio;
 
     const candidateMatched = bestShape && bestDistance <= matchThreshold;
@@ -654,7 +733,7 @@
       lastCandidateTime = now;
 
       if (matchCandidateStreak >= CONFIG.requiredMatchConfirmations) {
-        lastDetectionTime = now;
+        lastDetectionTime = candidateTime;
         matchCandidateStreak = 0;
         voicedSamplesSinceDetection = 0;
         count += 1;
@@ -663,7 +742,10 @@
         setStatus("speech");
         heardText.textContent = `${activePhrase} matched.`;
         const reachedGoal = checkGoalReached();
-        if (!reachedGoal && "vibrate" in navigator) navigator.vibrate(30);
+        if (!reachedGoal) {
+          playCountSound();
+          if ("vibrate" in navigator) navigator.vibrate(30);
+        }
       }
     } else if (outsideRefractory) {
       matchCandidateStreak = 0;
@@ -772,17 +854,20 @@
     const columns = right.length;
     const band = Math.max(Math.abs(rows - columns), Math.ceil(Math.max(rows, columns) * CONFIG.dtwBandRatio));
     let previous = new Float64Array(columns + 1).fill(Infinity);
+    let current = new Float64Array(columns + 1);
     previous[0] = 0;
 
     for (let row = 1; row <= rows; row += 1) {
-      const current = new Float64Array(columns + 1).fill(Infinity);
+      current.fill(Infinity);
       const start = Math.max(1, row - band);
       const end = Math.min(columns, row + band);
       for (let column = start; column <= end; column += 1) {
         const cost = featureDistance(left[row - 1], right[column - 1]);
         current[column] = cost + Math.min(previous[column], current[column - 1], previous[column - 1]);
       }
+      const swap = previous;
       previous = current;
+      current = swap;
     }
     return previous[columns] / Math.max(rows, columns);
   }
@@ -806,6 +891,16 @@
   function findTemplateAgreementDistance(candidate, storedTemplates) {
     const distances = storedTemplates
       .map((template) => dtwDistance(candidate, template.fingerprint))
+      .sort((left, right) => left - right);
+    const closest = distances[0] ?? Infinity;
+    return closest * 0.65 + median(distances) * 0.35;
+  }
+
+  function findTemplateAgreementDistanceWithKnown(candidate, storedTemplates, knownTemplate, knownDistance) {
+    const distances = storedTemplates
+      .map((template) => (
+        template === knownTemplate ? knownDistance : dtwDistance(candidate, template.fingerprint)
+      ))
       .sort((left, right) => left - right);
     const closest = distances[0] ?? Infinity;
     return closest * 0.65 + median(distances) * 0.35;
@@ -865,6 +960,26 @@
       });
     } catch (_) {
       // Vibration and the on-screen message still signal completion.
+    }
+  }
+
+  function playCountSound() {
+    if (!countSoundEnabled) return;
+    try {
+      if (!audioContext || audioContext.state !== "running") return;
+      const startAt = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.frequency.value = 760;
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(0.045, startAt + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.055);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(startAt);
+      oscillator.stop(startAt + 0.06);
+    } catch (_) {
+      // Optional feedback must never interrupt counting.
     }
   }
 
@@ -1251,6 +1366,29 @@
     installHelpDialog.close();
   });
 
+  settingsButton.addEventListener("click", () => {
+    countSoundToggle.checked = countSoundEnabled;
+    darkModeToggle.checked = darkModeEnabled;
+    if (typeof settingsDialog.showModal === "function" && !settingsDialog.open) {
+      settingsDialog.showModal();
+    }
+  });
+
+  countSoundToggle.addEventListener("change", () => {
+    countSoundEnabled = countSoundToggle.checked;
+    persistState();
+  });
+
+  darkModeToggle.addEventListener("change", () => {
+    darkModeEnabled = darkModeToggle.checked;
+    applyDisplaySettings();
+    persistState();
+  });
+
+  closeSettingsButton.addEventListener("click", () => {
+    settingsDialog.close();
+  });
+
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("./service-worker.js").catch(() => {});
@@ -1271,6 +1409,7 @@
   });
 
   loadPersistedState();
+  applyDisplaySettings();
   const initialPreset = PRESETS[activeProfileKey];
   const initialProfile = profiles[activeProfileKey];
   loadProfile(

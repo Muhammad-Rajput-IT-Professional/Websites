@@ -37,6 +37,7 @@ for (const selector of [
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
   "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
+  "#settingsButton", "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#closeSettingsButton",
 ]) {
   elements.set(selector, createElement());
 }
@@ -45,6 +46,7 @@ let currentProcessor;
 let microphoneStops = 0;
 let wakeLockRequests = 0;
 let wakeLockReleases = 0;
+let toneStarts = 0;
 const savedValues = new Map();
 const documentHandlers = {};
 
@@ -59,7 +61,24 @@ class FakeAudioContext {
     this.destination = {};
   }
   createMediaStreamSource() { return audioNode(); }
-  createGain() { return { ...audioNode(), gain: { value: 1 } }; }
+  createGain() {
+    return {
+      ...audioNode(),
+      gain: {
+        value: 1,
+        setValueAtTime() {},
+        exponentialRampToValueAtTime() {},
+      },
+    };
+  }
+  createOscillator() {
+    return {
+      ...audioNode(),
+      frequency: { value: 0 },
+      start() { toneStarts += 1; },
+      stop() {},
+    };
+  }
   createScriptProcessor() {
     const handlers = {};
     currentProcessor = {
@@ -107,6 +126,7 @@ const sandbox = {
   window: fakeWindow,
   document: {
     visibilityState: "visible",
+    documentElement: { dataset: {} },
     addEventListener(name, handler) { documentHandlers[name] = handler; },
     querySelector: (selector) => elements.get(selector),
   },
@@ -164,6 +184,16 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(savedValues.get("dhikr-counter-accuracy-notice-v1"), "seen");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
 
+  elements.get("#settingsButton").handlers.click();
+  assert.strictEqual(elements.get("#settingsDialog").open, true);
+  elements.get("#countSoundToggle").checked = true;
+  elements.get("#countSoundToggle").handlers.change();
+  elements.get("#darkModeToggle").checked = true;
+  elements.get("#darkModeToggle").handlers.change();
+  assert.strictEqual(sandbox.document.documentElement.dataset.theme, "dark");
+  elements.get("#closeSettingsButton").handlers.click();
+  assert.strictEqual(elements.get("#settingsDialog").open, false);
+
   await elements.get("#installAppButton").handlers.click();
   assert.strictEqual(elements.get("#installHelpDialog").open, true);
   elements.get("#closeInstallHelpButton").handlers.click();
@@ -187,8 +217,10 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(Number(elements.get("#counter").textContent), 50);
   elements.get("#incrementButton").handlers.click();
   assert.strictEqual(Number(elements.get("#counter").textContent), 51);
+  elements.get("#counter").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 52);
   elements.get("#decrementButton").handlers.click();
-  assert.strictEqual(Number(elements.get("#counter").textContent), 50);
+  assert.strictEqual(Number(elements.get("#counter").textContent), 51);
   elements.get("#resetButton").handlers.click();
   assert.strictEqual(Number(elements.get("#counter").textContent), 0);
 
@@ -227,6 +259,7 @@ async function recordExample(voiceBlocks = 8) {
   assert(Number(elements.get("#counter").textContent) >= 1);
   const normalCount = Number(elements.get("#counter").textContent);
   assert.strictEqual(elements.get("#goalProgress").textContent, "1 reached");
+  assert(toneStarts >= 3, `expected goal/count audio cues, starts=${toneStarts}`);
 
   for (let block = 0; block < 8; block += 1) currentProcessor.emit(silenceBlock);
   assert.strictEqual(Number(elements.get("#counter").textContent), normalCount);
@@ -245,6 +278,7 @@ async function recordExample(voiceBlocks = 8) {
   for (let block = 0; block < 36; block += 1) currentProcessor.emit(voiceBlock(block % 6));
   const fastCount = Number(elements.get("#counter").textContent);
   assert(fastCount >= 2, `after-listening-reset=${fastCount}`);
+  assert(toneStarts > 3, `expected per-count audio cues after the goal sound, starts=${toneStarts}`);
 
   for (let block = 0; block < 30; block += 1) currentProcessor.emit(voiceBlock(block % 5));
   const veryFastCount = Number(elements.get("#counter").textContent);
@@ -266,6 +300,8 @@ async function recordExample(voiceBlocks = 8) {
   const saved = JSON.parse(savedValues.get("dhikr-counter-profiles-v1"));
   assert.strictEqual(saved.profiles["custom:my dhikr"].count, slowCount);
   assert.strictEqual(saved.profiles["custom:my dhikr"].goal, 1);
+  assert.strictEqual(saved.settings.countSoundEnabled, true);
+  assert.strictEqual(saved.settings.darkModeEnabled, true);
   assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 3);
 
   elements.get("#presetSubhanallah").handlers.click();

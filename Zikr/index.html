@@ -20,15 +20,18 @@
             <p class="eyebrow">Phrase microphone counter</p>
             <h1 id="app-title">Dhikr Counter</h1>
           </div>
-          <div id="statusBadge" class="status waiting" role="status" aria-live="polite">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span id="statusText">Waiting</span>
+          <div class="topbar-actions">
+            <div id="statusBadge" class="status waiting" role="status" aria-live="polite">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="statusText">Waiting</span>
+            </div>
+            <button id="settingsButton" class="settings-button" type="button" aria-label="Settings" title="Settings">&#9881;</button>
           </div>
         </div>
 
         <div class="counter-wrap" aria-live="polite">
           <p class="counter-label">Repetitions</p>
-          <div id="counter" class="counter">0</div>
+          <button id="counter" class="counter counter-button" type="button" aria-label="Add one repetition">0</button>
           <p class="phrase-label" dir="auto">Current dhikr: <strong id="phraseDisplay">أَسْتَغْفِرُ اللَّهَ</strong></p>
           <div class="counter-adjustments" aria-label="Adjust counter manually">
             <button id="decrementButton" class="counter-step-button" type="button" title="Subtract one" aria-label="Subtract one">-</button>
@@ -86,6 +89,8 @@
           </div>
         </section>
 
+        <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
+
         <section class="noise-panel" aria-labelledby="noiseSetupTitle">
           <div class="setup-heading">
             <h2 id="noiseSetupTitle">Background noise setup</h2>
@@ -99,8 +104,6 @@
             <button id="clearNoiseSetupButton" class="button goal-clear-button" type="button" hidden>Clear background setup</button>
           </div>
         </section>
-
-        <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
 
         <div class="mic-meter" aria-label="Microphone input level">
           <div class="mic-meter-head">
@@ -150,7 +153,26 @@
       <button id="closeInstallHelpButton" class="button primary" type="button">Close</button>
     </dialog>
 
+    <dialog id="settingsDialog" class="setup-dialog settings-dialog" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">Settings</h2>
+      <label class="setting-row" for="countSoundToggle">
+        <span>
+          <strong>Count sound</strong>
+          <small>Play a quiet cue after each detected count.</small>
+        </span>
+        <input id="countSoundToggle" type="checkbox" />
+      </label>
+      <label class="setting-row" for="darkModeToggle">
+        <span>
+          <strong>Dark mode</strong>
+          <small>Use the darker display theme.</small>
+        </span>
+        <input id="darkModeToggle" type="checkbox" />
+      </label>
+      <button id="closeSettingsButton" class="button primary" type="button">Done</button>
+    </dialog>
+
     <script src="./vendor/meyda.min.js"></script>
-    <script src="./app.js?v=20"></script>
+    <script src="./app.js?v=22"></script>
   </body>
 </html>

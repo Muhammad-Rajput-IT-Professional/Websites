@@ -72,6 +72,24 @@ button {
   gap: 0.85rem;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.settings-button {
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--primary-dark);
+  background: var(--panel);
+  font-size: 1.25rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 .eyebrow {
   margin: 0 0 0.2rem;
   color: var(--muted);
@@ -154,6 +172,19 @@ h1 {
   line-height: 0.95;
   font-weight: 800;
   color: var(--primary-dark);
+}
+
+.counter-button {
+  min-width: 1.2em;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.counter-button:active {
+  transform: scale(0.98);
 }
 
 .counter-adjustments {
@@ -510,6 +541,144 @@ h1 {
 
 .setup-dialog .button {
   width: 100%;
+}
+
+.settings-dialog {
+  display: none;
+  gap: 0.35rem;
+}
+
+.settings-dialog[open] {
+  display: grid;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.setting-row span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.setting-row strong {
+  font-size: 0.95rem;
+}
+
+.setting-row small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.setting-row input {
+  appearance: none;
+  width: 2.75rem;
+  height: 1.55rem;
+  flex: 0 0 auto;
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #dfe6e2;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.setting-row input::before {
+  content: "";
+  position: absolute;
+  width: 1.15rem;
+  height: 1.15rem;
+  top: 0.14rem;
+  left: 0.16rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  transition: transform 140ms ease;
+}
+
+.setting-row input:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.setting-row input:checked::before {
+  transform: translateX(1.18rem);
+}
+
+.setting-row input:focus-visible {
+  outline: 3px solid rgba(15, 107, 95, 0.22);
+  outline-offset: 2px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #101613;
+  --ink: #eef6f2;
+  --muted: #aab9b3;
+  --line: #3c4b46;
+  --panel: #19221f;
+  --primary: #42aa96;
+  --primary-dark: #83d7c5;
+  --shadow: 0 20px 45px rgba(0, 0, 0, 0.38);
+}
+
+html[data-theme="dark"] body {
+  background: #101613;
+}
+
+html[data-theme="dark"] .counter-panel,
+html[data-theme="dark"] .setup-dialog {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+html[data-theme="dark"] .status,
+html[data-theme="dark"] .goal-panel,
+html[data-theme="dark"] .preset-button,
+html[data-theme="dark"] .phrase-input-row input,
+html[data-theme="dark"] .counter-adjustments input,
+html[data-theme="dark"] .goal-controls input,
+html[data-theme="dark"] .install-button {
+  color: var(--ink);
+  background: #202c28;
+}
+
+html[data-theme="dark"] .setup-panel,
+html[data-theme="dark"] .noise-panel,
+html[data-theme="dark"] .heard-text {
+  background: #151d1a;
+}
+
+html[data-theme="dark"] .preset-button.selected,
+html[data-theme="dark"] .setup-button,
+html[data-theme="dark"] .ghost,
+html[data-theme="dark"] .counter-step-button,
+html[data-theme="dark"] .set-counter-button,
+html[data-theme="dark"] .goal-clear-button {
+  color: #b8f0e4;
+  background: #243b35;
+}
+
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .goal-button,
+html[data-theme="dark"] .phrase-button,
+html[data-theme="dark"] .noise-setup-button {
+  background: #31423d;
+}
+
+html[data-theme="dark"] .mic-meter-track {
+  background: #26332f;
+}
+
+html[data-theme="dark"] .setting-row input:not(:checked) {
+  background: #33423d;
 }
 
 .mic-meter {

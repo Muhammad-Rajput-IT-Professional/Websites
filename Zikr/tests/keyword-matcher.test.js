@@ -34,6 +34,7 @@ for (const selector of [
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
   "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
+  "#settingsButton", "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#closeSettingsButton",
 ]) {
   elements.set(selector, element());
 }
@@ -46,6 +47,7 @@ const sandbox = {
   },
   document: {
     visibilityState: "visible",
+    documentElement: { dataset: {} },
     addEventListener() {},
     querySelector: (selector) => elements.get(selector),
   },
