@@ -44,7 +44,7 @@
 
         <div class="controls" aria-label="Counter controls">
           <button id="startButton" class="button primary" type="button">Start Listening</button>
-          <button id="stopButton" class="button secondary" type="button">Stop Listening</button>
+          <button id="stopButton" class="button secondary" type="button" disabled>Stop Listening</button>
           <button id="resetButton" class="button ghost" type="button">Reset Counter</button>
         </div>
 
@@ -87,9 +87,8 @@
             <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
             <button id="restartSetupButton" class="button restart-setup-button" type="button" hidden>Restart setup</button>
           </div>
+          <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
         </section>
-
-        <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
 
         <section class="noise-panel" aria-labelledby="noiseSetupTitle">
           <div class="setup-heading">
@@ -173,6 +172,6 @@
     </dialog>
 
     <script src="./vendor/meyda.min.js"></script>
-    <script src="./app.js?v=22"></script>
+    <script src="./app.js?v=24"></script>
   </body>
 </html>

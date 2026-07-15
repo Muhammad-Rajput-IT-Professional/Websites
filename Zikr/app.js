@@ -362,7 +362,7 @@
     );
     restartSetupButton.disabled = mode === "noise-calibrating";
     startButton.disabled = mode !== "idle";
-    stopButton.disabled = false;
+    stopButton.disabled = mode !== "listening";
     updateNoiseSetupUi();
   }
 
@@ -1237,7 +1237,7 @@
       wakeLockDesired = true;
       requestScreenWakeLock();
       setStatus("listening");
-      stopButton.disabled = false;
+      stopButton.disabled = mode !== "listening";
       heardText.textContent = "Listening for your calibrated phrase...";
     } catch (error) {
       mode = "idle";

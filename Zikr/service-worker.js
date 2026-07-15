@@ -1,9 +1,9 @@
-const CACHE_NAME = "dhikr-counter-v22";
+const CACHE_NAME = "dhikr-counter-v24";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js?v=22",
+  "./app.js?v=24",
   "./manifest.webmanifest",
   "./vendor/meyda.min.js",
   "./icons/icon-180.png",

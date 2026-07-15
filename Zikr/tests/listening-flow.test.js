@@ -179,6 +179,7 @@ async function recordExample(voiceBlocks = 8) {
 
 (async () => {
   assert.strictEqual(elements.get("#accuracyNoticeDialog").open, true);
+  assert.strictEqual(elements.get("#stopButton").disabled, true);
   elements.get("#acceptAccuracyNoticeButton").handlers.click();
   assert.strictEqual(elements.get("#accuracyNoticeDialog").open, false);
   assert.strictEqual(savedValues.get("dhikr-counter-accuracy-notice-v1"), "seen");
@@ -248,6 +249,7 @@ async function recordExample(voiceBlocks = 8) {
   await elements.get("#startButton").handlers.click();
   await Promise.resolve();
   assert.strictEqual(wakeLockRequests, 1);
+  assert.strictEqual(elements.get("#stopButton").disabled, false);
 
   const snapBlock = new Float32Array(4096);
   snapBlock[100] = 0.9;
@@ -294,6 +296,7 @@ async function recordExample(voiceBlocks = 8) {
 
   elements.get("#stopButton").handlers.click();
   assert.strictEqual(wakeLockReleases, 1);
+  assert.strictEqual(elements.get("#stopButton").disabled, true);
   assert.strictEqual(elements.get("#micLevelText").textContent, "Off");
   assert.strictEqual(microphoneStops, 3);
 
