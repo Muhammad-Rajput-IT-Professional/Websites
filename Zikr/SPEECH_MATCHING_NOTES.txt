@@ -1,0 +1,470 @@
+Dhikr Counter speech matching notes
+===================================
+
+Purpose
+-------
+
+This app counts repeated dhikr from the microphone without using paid services,
+cloud APIs, uploaded audio, or browser speech recognition. The current working
+approach is personalized local keyword spotting. It does not understand Arabic,
+English, or any spoken words. Instead, it learns the user's sound pattern for a
+selected dhikr phrase and counts future microphone segments that match that
+pattern.
+
+The recognition code lives mostly in app.js. The app shell is static HTML, CSS,
+and JavaScript, with the Meyda browser audio library stored locally in
+vendor/meyda.min.js.
+
+
+Important principle
+-------------------
+
+Do not describe this as speech recognition. Earlier attempts that depended on
+speech recognition were unreliable because:
+
+- Browser speech recognition often sends audio to a browser/vendor service.
+- It is not consistently free/offline across browsers.
+- It produced wrong words for Arabic dhikr, for example unrelated English or
+  Arabic phrases.
+- It often waited until the user stopped speaking, which is bad for live
+  repeated dhikr counting.
+
+The current app intentionally avoids speech-to-text. It only compares sound
+fingerprints locally.
+
+
+What did not work well
+----------------------
+
+1. Simple voice activity detection
+
+   Counting one repetition when speech starts and stops worked only when the
+   user clearly paused after every dhikr. It failed for natural continuous dhikr
+   because several repetitions in one breath looked like one long speech
+   segment. It also counted non-speech sounds such as sniffing, finger snaps,
+   keyboard taps, and movement.
+
+2. Raw volume detection
+
+   Volume alone was too easy to fool. Any loud enough sound could trigger a
+   count, especially in wind or background noise.
+
+3. Browser speech recognition
+
+   Speech recognition sometimes failed to start, required a network/browser
+   recognition service, returned unrelated text, or waited until the user
+   stopped. It was also not suitable for arbitrary dhikr phrases and did not
+   meet the local-only privacy goal.
+
+4. Heavy or experimental local speech models
+
+   Browser-side speech models had startup/download problems, browser errors,
+   and too much complexity for this simple static app.
+
+The current method was chosen because it is local, fast enough on phones, works
+with custom phrases, and does not need to know what words were spoken.
+
+
+Current working approach
+------------------------
+
+The app uses a three-example voice setup per dhikr:
+
+1. Natural speed
+2. Slow speed
+3. Fast comfortable speed
+
+Each example is captured from the microphone, trimmed after the user pauses, and
+converted into a derived sound fingerprint. Raw microphone audio is not saved.
+
+Each saved template contains:
+
+- fingerprint: normalized MFCC feature sequence
+- durationSamples: length of the example after downsampling
+- speechShape: basic speech-like statistics
+
+The templates are stored in browser localStorage under:
+
+dhikr-counter-profiles-v1
+
+The saved data is per browser, per device, and per site origin. It can disappear
+if the user clears site data, uses private/incognito mode, changes browser, or
+opens the app from a different origin.
+
+
+Audio pipeline
+--------------
+
+Microphone setup:
+
+- navigator.mediaDevices.getUserMedia requests one audio channel.
+- Browser echo cancellation, noise suppression, and auto gain control are
+  enabled.
+- Audio is processed through Web Audio API.
+- The current code uses createScriptProcessor with 4096-sample blocks.
+- A silent gain node keeps the processor connected while output remains muted.
+- No audio is recorded to disk or uploaded.
+
+Sample handling:
+
+- Browser/device input sample rate may be 44.1 kHz or 48 kHz.
+- The app downsamples blocks to 16 kHz before feature extraction.
+- 16 kHz is enough for speech-pattern matching and keeps CPU cost lower.
+
+Feature extraction:
+
+- Meyda extracts MFCC features locally.
+- Frame size: 512 samples
+- Hop size: 160 samples
+- Mel bands: 26
+- MFCC coefficients: 13, but coefficient 0 is skipped and RMS is added.
+
+Each frame feature is:
+
+- MFCC coefficients 1 through 12
+- log RMS
+
+The feature sequence is normalized per candidate/template so matching focuses
+more on shape and spectral pattern than absolute loudness.
+
+
+Voice setup details
+-------------------
+
+The main functions are:
+
+- processCalibrationBlock
+- finishCalibrationExample
+- extractFingerprint
+- finalizeVoiceSetup
+
+During setup:
+
+- The app waits until the microphone block crosses the voice energy threshold.
+- It collects blocks while voice energy is present.
+- It stops the example after a short silence or after the maximum example time.
+- It trims trailing silence.
+- It rejects examples that are too short or do not produce enough features.
+
+Important timing constants in CONFIG:
+
+- requiredExamples: 3
+- calibrationSilenceMs: 320
+- minimumExampleMs: 350
+- maximumExampleMs: 3000
+
+After all three examples are recorded, finalizeVoiceSetup calculates:
+
+- expectedDurationSamples: median duration of the three examples
+- minimumTemplateDurationSamples
+- maximumTemplateDurationSamples
+- matchThreshold
+
+matchThreshold is based on the DTW distances between the user's own three setup
+examples. This is important because every user's pronunciation and recording
+style is different.
+
+
+Live counting
+-------------
+
+The main functions are:
+
+- processListeningBlock
+- analyzeListeningWindow
+- analyzeSpeechShape
+- dtwDistance
+- findTemplateAgreementDistanceWithKnown
+
+During listening:
+
+1. Each microphone block is downsampled to 16 kHz.
+2. The app appends it to a rolling listening buffer.
+3. If the block has voice energy, analysis may run.
+4. If there is enough silence, the rolling buffer is cleared.
+5. The app scans recent windows of audio and compares them to the saved
+   templates.
+6. If a candidate matches the saved phrase and passes timing/speech-shape
+   checks, the counter increments immediately.
+
+Important current timing constants:
+
+- analysisIntervalMs: 80
+- detectionLookbackMs: 280
+- listeningBufferResetSilenceMs: 160
+- refractoryRatio: 0.58
+- minimumNewVoicedRatio: 0.42
+
+These values matter. Earlier versions analyzed less often and only checked the
+most recent window. That caused missed counts or apparent "hanging" when the
+analysis tick landed halfway through a fast repetition. The current version
+checks a short lookback window so it can still find a phrase that ended slightly
+before the current tick.
+
+
+How matching works
+------------------
+
+The matcher does not wait for a full pause. It looks continuously at recent
+audio.
+
+For each analysis pass, analyzeListeningWindow:
+
+1. Builds several candidate durations from the user's recorded template lengths.
+   It tests scaled versions of the expected, minimum, maximum, and exact
+   template durations.
+
+   Current scales:
+
+   - 0.62
+   - 0.75
+   - 0.88
+   - 1.00
+   - 1.12
+
+   This is important because real dhikr speed varies. In testing, a recording
+   of 18 Astaghfirullah repetitions had phrase lengths from about 0.36 seconds
+   to 1.14 seconds.
+
+2. Builds several possible end offsets in the recent lookback window.
+
+   This prevents missed counts when the current analysis tick is not aligned
+   with the end of a phrase.
+
+3. Extracts raw MFCC features once from the longest relevant recent audio.
+
+4. For each candidate duration/end offset, slices the feature sequence and
+   normalizes it.
+
+5. Runs a preliminary DTW comparison against the nearest-duration template.
+
+6. Keeps only the best preliminary candidate.
+
+7. Runs the full three-template agreement check only for that best candidate.
+
+8. Runs speech-shape checks on the matching audio window.
+
+9. Applies timing gates to prevent duplicate counts.
+
+10. Increments the counter if the candidate passes all checks.
+
+
+DTW
+---
+
+DTW means Dynamic Time Warping. It compares two feature sequences even when one
+is spoken faster or slower than the other.
+
+The function dtwDistance compares frame-by-frame feature vectors with a limited
+warping band:
+
+- dtwBandRatio: 0.28
+
+The band keeps the comparison flexible but prevents extreme alignments that
+would match unrelated sounds too easily.
+
+Performance note:
+
+DTW can be expensive if run too many times. The current app avoids lag by:
+
+- Extracting MFCC features once per analysis pass.
+- Using a preliminary nearest-template comparison.
+- Running the full agreement check only on the best candidate.
+- Reusing the preliminary distance when doing the final agreement.
+- Reusing fixed Float64Array buffers inside dtwDistance.
+
+This was important because earlier versions became laggy during longer sessions
+or faster recitation.
+
+
+False-positive protection
+-------------------------
+
+The app uses several gates before counting:
+
+1. Energy threshold
+
+   A block must cross a dynamic voice energy threshold before it is considered
+   speech-like.
+
+2. Speech-shape check
+
+   analyzeSpeechShape rejects short clicks/snaps and noise-like signals using:
+
+   - minimumActiveMs: 220
+   - minimumContinuousVoiceMs: 110
+   - minimumActiveRatio: 0.22
+   - maximumCrestFactor: 14
+   - maximumSpectralFlatness: 0.58
+
+3. Template match threshold
+
+   The candidate must be close enough to the saved user templates.
+
+4. Refractory timing
+
+   The app will not count another phrase too soon after the last matched phrase.
+
+5. Minimum new voiced audio
+
+   The app requires enough new voiced samples since the last detection before
+   another count can happen.
+
+6. Silence buffer reset
+
+   After a short silence, the rolling comparison buffer is cleared. This stops a
+   later keyboard tap, movement, or other sound from retriggering the previous
+   valid phrase.
+
+
+Background noise setup
+----------------------
+
+The optional background setup records about four seconds of environmental sound
+while the user stays quiet. It does not save audio. It saves only a derived
+numeric noise level:
+
+- backgroundNoiseLevel
+
+That value changes the voice energy threshold. This helps with steady noise such
+as wind or room hum, but it is not a full noise-cancellation system. Unpredictable
+gusts, nearby speech, tapping, or movement can still affect accuracy.
+
+Important constants:
+
+- backgroundCalibrationMs: 4000
+- calibratedNoiseMultiplier: 1.65
+- noiseMultiplier: 2.8
+- minimumThreshold: 0.012
+
+
+Storage and privacy
+-------------------
+
+The app stores only derived data in localStorage:
+
+- activeProfileKey
+- profiles
+- each profile's label
+- count
+- goal
+- templates/fingerprints
+- backgroundNoiseLevel
+- settings such as dark mode and count sound
+
+It does not store raw audio. It does not upload audio. It does not need a backend.
+
+Storage key:
+
+dhikr-counter-profiles-v1
+
+First-visit notice key:
+
+dhikr-counter-accuracy-notice-v1
+
+Because localStorage is per origin, these are separate:
+
+- http://localhost:5173
+- http://127.0.0.1:5173
+- GitHub Pages HTTPS URL
+- installed PWA from a different URL
+
+If the user trains on one origin and later opens another origin, the saved
+fingerprints will not be there.
+
+
+PWA and mobile behavior
+-----------------------
+
+The app is static and can be deployed to GitHub Pages.
+
+PWA files:
+
+- manifest.webmanifest
+- service-worker.js
+- icons/
+
+The service worker caches the app shell. When changing app.js, bump the query
+version in index.html and the cache name/file entry in service-worker.js. This
+prevents phones or installed PWAs from keeping old code.
+
+The app also uses Screen Wake Lock when available, so the phone screen does not
+sleep while listening. This requires HTTPS or localhost and is not supported in
+all browsers.
+
+
+What to be careful with
+-----------------------
+
+The current matching behavior is sensitive but stable. Avoid casual changes to:
+
+- CONFIG.analysisIntervalMs
+- CONFIG.detectionLookbackMs
+- CONFIG.refractoryRatio
+- CONFIG.minimumNewVoicedRatio
+- duration candidate scales in analyzeListeningWindow
+- speech-shape thresholds
+- DTW band ratio
+- rolling buffer reset silence
+
+Changing these can make the app either miss fast dhikr or count random sounds.
+
+If tuning is needed later, use real recordings with known counts. The useful test
+case from development was Astagfirulla.m4a, where the user said Astaghfirullah 18
+times. The file showed that phrase durations can vary widely, so matching must
+support fast and slow repetitions without requiring a long pause.
+
+
+Recommended rebuild plan
+------------------------
+
+If rebuilding from scratch, keep this architecture:
+
+1. Static app only: HTML, CSS, JavaScript.
+2. Request microphone locally with getUserMedia.
+3. Use Web Audio to process live microphone blocks.
+4. Downsample to 16 kHz.
+5. Extract MFCC features locally with Meyda or equivalent.
+6. Require three setup examples: natural, slow, fast.
+7. Store derived MFCC templates per dhikr in localStorage.
+8. During listening, run rolling-window local keyword spotting.
+9. Compare candidates with DTW.
+10. Scan several duration candidates and recent end offsets.
+11. Apply speech-shape, refractory, and new-voice gates before counting.
+12. Clear the rolling buffer after short silence.
+13. Never use cloud APIs or speech-to-text.
+14. Never save or upload raw audio.
+
+
+Current user-facing behavior
+----------------------------
+
+- The user chooses a dhikr preset or custom phrase.
+- The user records three examples.
+- The app saves the derived voice setup on that browser/device.
+- The user presses Start Listening.
+- The counter increments live when the calibrated phrase pattern is detected.
+- Stop Listening is disabled unless listening is active.
+- The voice setup log appears inside the Voice setup panel.
+- The microphone level meter shows input activity.
+- Counts, goals, settings, and fingerprints persist across refresh unless site
+  data is cleared.
+
+
+Summary
+-------
+
+The app works well now because it stopped trying to understand words and instead
+learns the user's local sound pattern. The strongest parts of the current design
+are:
+
+- personalized three-example calibration
+- MFCC sound fingerprints
+- DTW matching for speed variation
+- recent lookback scanning for fast continuous dhikr
+- speech-shape gates for clicks/noise
+- rolling buffer reset after silence
+- fully local browser-only processing
+
+These pieces together are what made the current version accurate without paid
+services, cloud APIs, stored recordings, or speech recognition.

@@ -90,13 +90,17 @@ button {
   touch-action: manipulation;
 }
 
-.eyebrow {
-  margin: 0 0 0.2rem;
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.app-version {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 h1 {

@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const APP_VERSION = "v26";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -39,6 +40,7 @@
   });
 
   const counterEl = document.querySelector("#counter");
+  const appVersionEl = document.querySelector("#appVersion");
   const startButton = document.querySelector("#startButton");
   const stopButton = document.querySelector("#stopButton");
   const resetButton = document.querySelector("#resetButton");
@@ -970,14 +972,16 @@
       const startAt = audioContext.currentTime;
       const oscillator = audioContext.createOscillator();
       const gain = audioContext.createGain();
-      oscillator.frequency.value = 760;
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, startAt);
+      oscillator.frequency.exponentialRampToValueAtTime(660, startAt + 0.11);
       gain.gain.setValueAtTime(0.0001, startAt);
-      gain.gain.exponentialRampToValueAtTime(0.045, startAt + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.055);
+      gain.gain.exponentialRampToValueAtTime(0.11, startAt + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.13);
       oscillator.connect(gain);
       gain.connect(audioContext.destination);
       oscillator.start(startAt);
-      oscillator.stop(startAt + 0.06);
+      oscillator.stop(startAt + 0.14);
     } catch (_) {
       // Optional feedback must never interrupt counting.
     }
@@ -1377,6 +1381,7 @@
   countSoundToggle.addEventListener("change", () => {
     countSoundEnabled = countSoundToggle.checked;
     persistState();
+    if (countSoundEnabled) playCountSound();
   });
 
   darkModeToggle.addEventListener("change", () => {
@@ -1409,6 +1414,7 @@
   });
 
   loadPersistedState();
+  if (appVersionEl) appVersionEl.textContent = APP_VERSION;
   applyDisplaySettings();
   const initialPreset = PRESETS[activeProfileKey];
   const initialProfile = profiles[activeProfileKey];

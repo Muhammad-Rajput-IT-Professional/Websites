@@ -26,7 +26,7 @@ function createElement() {
 
 const elements = new Map();
 for (const selector of [
-  "#counter", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
+  "#counter", "#appVersion", "#startButton", "#stopButton", "#resetButton", "#calibrateButton",
   "#decrementButton", "#incrementButton", "#counterValueInput", "#setCounterButton",
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
@@ -74,7 +74,11 @@ class FakeAudioContext {
   createOscillator() {
     return {
       ...audioNode(),
-      frequency: { value: 0 },
+      frequency: {
+        value: 0,
+        setValueAtTime() {},
+        exponentialRampToValueAtTime() {},
+      },
       start() { toneStarts += 1; },
       stop() {},
     };
