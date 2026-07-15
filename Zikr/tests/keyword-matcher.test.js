@@ -27,7 +27,7 @@ for (const selector of [
   "#decrementButton", "#incrementButton", "#counterValueInput", "#setCounterButton",
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
-  "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
+  "#presetAstaghfirullah", "#presetSubhanallah", "#presetSalawat", "#customPhraseButton", "#customPhraseControl",
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",

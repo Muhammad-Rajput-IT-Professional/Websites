@@ -562,10 +562,6 @@ h1 {
     grid-template-columns: 1fr 1fr;
   }
 
-  #customPhraseButton {
-    grid-column: 1 / -1;
-  }
-
   .phrase-input-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

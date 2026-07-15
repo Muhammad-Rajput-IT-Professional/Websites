@@ -2,7 +2,7 @@
 
 A simple static web app that counts dhikr repetitions from microphone input.
 
-The current version uses personalized keyword spotting instead of speech recognition. It includes Arabic presets for Astaghfirullah and SubhanAllahi wa bihamdihi, plus a custom phrase option. For each dhikr, the user records one natural, one slow, and one fast example during a quick voice setup. The setup can be restarted at any point. The app converts the examples into MFCC sound fingerprints, then compares rolling microphone windows at several speeds while the user continues speaking.
+The current version uses personalized keyword spotting instead of speech recognition. It includes Arabic presets for Astaghfirullah and SubhanAllahi wa bihamdihi, an English Salawat / Durood preset, and a custom phrase option. For each dhikr, the user records one natural, one slow, and one fast example during a quick voice setup. The setup can be restarted at any point. The app converts the examples into MFCC sound fingerprints, then compares rolling microphone windows at several speeds while the user continues speaking.
 
 Each dhikr can also have its own target count. Reaching the target plays a short local chime, vibrates supported phones, and displays a completion message.
 
@@ -12,11 +12,16 @@ During listening, a short silence clears the rolling comparison window. This pre
 
 Fast repetitions are analyzed from shorter rolling windows and do not require a long pause between phrases. The natural, slow, and fast setup examples remain important because they define the user's expected range.
 
+Live analysis uses the recorded duration of each setup example directly. Resetting the counter during listening also clears only the rolling audio/timing window, allowing the next repetition to start from a clean state without stopping the microphone.
+
+For mobile performance, each analysis extracts MFCC features once from the longest rolling window. A duration-matched preliminary comparison selects the best window before the full three-template agreement and speech-shape checks run once, avoiding repeated feature extraction and periodic main-thread stalls.
+
 An optional four-second background setup can learn a sustained environmental noise level, such as steady wind. It stores only the derived numeric level, not audio. The setup should be redone or cleared when the environment changes; unpredictable gusts can still affect accuracy.
 
 On browsers that support the Screen Wake Lock API, the display is kept awake while the counter is listening. The lock is released when listening stops and reacquired when an active listening tab becomes visible again. This requires HTTPS or `localhost`.
 
 The site is an installable PWA with a local manifest, icons, and an offline app shell. Its Install app button opens the native browser prompt when available and gives Add to Home Screen instructions on iPhone and other browsers without a programmatic prompt.
+
 
 First-time visitors see an accuracy notice explaining that a quiet environment and consistent microphone distance improve results, but local sound-pattern matching can still miss or add counts.
 

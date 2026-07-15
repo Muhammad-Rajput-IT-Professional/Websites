@@ -30,7 +30,7 @@ for (const selector of [
   "#decrementButton", "#incrementButton", "#counterValueInput", "#setCounterButton",
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
-  "#presetAstaghfirullah", "#presetSubhanallah", "#customPhraseButton", "#customPhraseControl",
+  "#presetAstaghfirullah", "#presetSubhanallah", "#presetSalawat", "#customPhraseButton", "#customPhraseControl",
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
@@ -199,9 +199,9 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
 
-  await recordExample();
-  await recordExample(11);
-  await recordExample(6);
+  await recordExample(10);
+  await recordExample(14);
+  await recordExample(5);
 
   assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
@@ -239,9 +239,12 @@ async function recordExample(voiceBlocks = 8) {
   );
   assert.strictEqual(elements.get("#statusText").textContent, "Listening");
 
+  elements.get("#resetButton").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 0);
+
   for (let block = 0; block < 36; block += 1) currentProcessor.emit(voiceBlock(block % 6));
   const fastCount = Number(elements.get("#counter").textContent);
-  assert(fastCount >= normalCount + 2, `normal=${normalCount}, after-fast=${fastCount}`);
+  assert(fastCount >= 2, `after-listening-reset=${fastCount}`);
 
   for (let block = 0; block < 30; block += 1) currentProcessor.emit(voiceBlock(block % 5));
   const veryFastCount = Number(elements.get("#counter").textContent);
@@ -266,6 +269,11 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 3);
 
   elements.get("#presetSubhanallah").handlers.click();
+  assert.strictEqual(Number(elements.get("#counter").textContent), 0);
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+
+  elements.get("#presetSalawat").handlers.click();
+  assert.strictEqual(elements.get("#phraseDisplay").textContent, "Salawat / Durood");
   assert.strictEqual(Number(elements.get("#counter").textContent), 0);
   assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
 

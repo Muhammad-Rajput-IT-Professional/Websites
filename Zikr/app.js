@@ -34,6 +34,7 @@
   const PRESETS = Object.freeze({
     astaghfirullah: { label: "أَسْتَغْفِرُ اللَّهَ" },
     subhanallah_wabihamdihi: { label: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ" },
+    salawat_durood: { label: "Salawat / Durood" },
   });
 
   const counterEl = document.querySelector("#counter");
@@ -53,6 +54,7 @@
   const phraseDisplay = document.querySelector("#phraseDisplay");
   const presetAstaghfirullah = document.querySelector("#presetAstaghfirullah");
   const presetSubhanallah = document.querySelector("#presetSubhanallah");
+  const presetSalawat = document.querySelector("#presetSalawat");
   const customPhraseButton = document.querySelector("#customPhraseButton");
   const customPhraseControl = document.querySelector("#customPhraseControl");
   const calibrateButton = document.querySelector("#calibrateButton");
@@ -115,6 +117,8 @@
 
   let templates = [];
   let expectedDurationSamples = 0;
+  let minimumTemplateDurationSamples = 0;
+  let maximumTemplateDurationSamples = 0;
   let matchThreshold = 0.9;
   let listeningSamples = new Float32Array(0);
   let samplesSinceAnalysis = 0;
@@ -178,6 +182,7 @@
   function updatePhrasePickerUi() {
     presetAstaghfirullah.className = `preset-button${activeProfileKey === "astaghfirullah" ? " selected" : ""}`;
     presetSubhanallah.className = `preset-button${activeProfileKey === "subhanallah_wabihamdihi" ? " selected" : ""}`;
+    presetSalawat.className = `preset-button${activeProfileKey === "salawat_durood" ? " selected" : ""}`;
     const customSelected = activeProfileKey.startsWith("custom:");
     customPhraseButton.className = `preset-button${customSelected ? " selected" : ""}`;
     customPhraseControl.hidden = !customSelected;
@@ -533,7 +538,10 @@
   }
 
   function finalizeVoiceSetup() {
-    expectedDurationSamples = Math.round(median(templates.map((template) => template.durationSamples)));
+    const templateDurations = templates.map((template) => template.durationSamples);
+    expectedDurationSamples = Math.round(median(templateDurations));
+    minimumTemplateDurationSamples = Math.min(...templateDurations);
+    maximumTemplateDurationSamples = Math.max(...templateDurations);
     const positiveDistances = [];
     for (let left = 0; left < templates.length; left += 1) {
       for (let right = left + 1; right < templates.length; right += 1) {
@@ -549,7 +557,7 @@
     listeningSamples = appendAndLimit(
       listeningSamples,
       downsampled,
-      Math.ceil(expectedDurationSamples * 1.6),
+      Math.ceil(Math.max(expectedDurationSamples * 1.6, maximumTemplateDurationSamples * 1.2)),
     );
     samplesSinceAnalysis += downsampled.length;
     listeningTimeMs += (downsampled.length / CONFIG.outputSampleRate) * 1000;
@@ -576,7 +584,7 @@
     const intervalSamples = Math.round((CONFIG.analysisIntervalMs / 1000) * CONFIG.outputSampleRate);
     if (
       samplesSinceAnalysis < intervalSamples
-      || listeningSamples.length < expectedDurationSamples * CONFIG.minimumAnalysisWindowRatio
+      || listeningSamples.length < minimumTemplateDurationSamples * 0.8
     ) return;
     samplesSinceAnalysis = 0;
     analyzeListeningWindow();
@@ -585,25 +593,50 @@
   function analyzeListeningWindow() {
     if (calculateRms(listeningSamples) < CONFIG.minimumThreshold * 0.75) return;
 
-    let bestDistance = Infinity;
+    let bestPreliminaryDistance = Infinity;
+    let bestCandidate = null;
     let bestShape = null;
     let bestDurationSamples = expectedDurationSamples;
-    for (const durationFactor of [0.62, 0.78, 1, 1.15, 1.38]) {
-      const sampleCount = Math.min(
-        listeningSamples.length,
-        Math.round(expectedDurationSamples * durationFactor),
+    const durationCandidates = new Set(templates.map((template) => template.durationSamples));
+    durationCandidates.add(Math.round(minimumTemplateDurationSamples * 0.85));
+    durationCandidates.add(Math.round(maximumTemplateDurationSamples * 1.1));
+
+    const sampleCounts = [...durationCandidates]
+      .map((requestedSampleCount) => Math.min(listeningSamples.length, requestedSampleCount))
+      .filter((sampleCount) => sampleCount >= CONFIG.mfccFrameSize);
+    const longestSampleCount = Math.max(...sampleCounts);
+    const longestSamples = listeningSamples.slice(listeningSamples.length - longestSampleCount);
+    const rawSequence = extractRawFeatureSequence(longestSamples);
+
+    for (const sampleCount of new Set(sampleCounts)) {
+      const frameCount = Math.floor(
+        (sampleCount - CONFIG.mfccFrameSize) / CONFIG.mfccHopSize,
+      ) + 1;
+      const candidate = normalizeFeatureSequence(rawSequence.slice(-frameCount));
+      if (!candidate.length) continue;
+      const nearestTemplate = templates.reduce(
+        (nearest, template) => (
+          Math.abs(template.durationSamples - sampleCount)
+            < Math.abs(nearest.durationSamples - sampleCount)
+            ? template
+            : nearest
+        ),
+        templates[0],
       );
-      const samples = listeningSamples.slice(listeningSamples.length - sampleCount);
-      const candidate = extractFingerprint(samples);
-      if (!candidate) continue;
-      const shape = analyzeSpeechShape(samples);
-      if (!isSpeechLike(shape)) continue;
-      const distance = findTemplateAgreementDistance(candidate, templates);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestShape = shape;
+      const preliminaryDistance = dtwDistance(candidate, nearestTemplate.fingerprint);
+      if (preliminaryDistance < bestPreliminaryDistance) {
+        bestPreliminaryDistance = preliminaryDistance;
+        bestCandidate = candidate;
         bestDurationSamples = sampleCount;
       }
+    }
+
+    let bestDistance = Infinity;
+    if (bestCandidate) {
+      bestDistance = findTemplateAgreementDistance(bestCandidate, templates);
+      const bestSamples = listeningSamples.slice(listeningSamples.length - bestDurationSamples);
+      const shape = analyzeSpeechShape(bestSamples);
+      if (isSpeechLike(shape)) bestShape = shape;
     }
 
     const now = listeningTimeMs;
@@ -685,7 +718,12 @@
   }
 
   function extractFingerprint(samples) {
-    if (!window.Meyda || samples.length < CONFIG.mfccFrameSize) return null;
+    const sequence = extractRawFeatureSequence(samples);
+    return sequence.length ? normalizeFeatureSequence(sequence) : null;
+  }
+
+  function extractRawFeatureSequence(samples) {
+    if (!window.Meyda || samples.length < CONFIG.mfccFrameSize) return [];
     const sequence = [];
 
     for (
@@ -701,7 +739,7 @@
         Math.log10((features.rms || 0) + 1e-6),
       ]);
     }
-    return normalizeFeatureSequence(sequence);
+    return sequence;
   }
 
   function normalizeFeatureSequence(sequence) {
@@ -783,6 +821,8 @@
   function resetVoiceSetup() {
     templates = [];
     expectedDurationSamples = 0;
+    minimumTemplateDurationSamples = 0;
+    maximumTemplateDurationSamples = 0;
     matchThreshold = 0.9;
     listeningSamples = new Float32Array(0);
     listeningTimeMs = 0;
@@ -1050,6 +1090,10 @@
     loadProfile("subhanallah_wabihamdihi", PRESETS.subhanallah_wabihamdihi.label);
   });
 
+  presetSalawat.addEventListener("click", () => {
+    loadProfile("salawat_durood", PRESETS.salawat_durood.label);
+  });
+
   customPhraseButton.addEventListener("click", () => {
     customPhraseControl.hidden = false;
     phraseInput.focus();
@@ -1109,6 +1153,16 @@
   resetButton.addEventListener("click", () => {
     count = 0;
     goalCelebrated = false;
+    if (mode === "listening") {
+      listeningSamples = new Float32Array(0);
+      samplesSinceAnalysis = 0;
+      listeningTimeMs = 0;
+      lastDetectionTime = -Infinity;
+      matchCandidateStreak = 0;
+      lastCandidateTime = -Infinity;
+      voicedSamplesSinceDetection = Infinity;
+      consecutiveSilenceSamples = 0;
+    }
     updateCounter();
     persistState();
     heardText.textContent = mode === "listening"
