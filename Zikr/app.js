@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v32";
+  const APP_VERSION = "v33";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -149,6 +149,8 @@
   let calibrationSpeechFrames = 0;
   let calibrationSilenceFrames = 0;
   let calibrationBuffers = [];
+  let calibrationHoldActive = false;
+  let calibrationHoldPointerId = null;
 
   let templates = [];
   let expectedDurationSamples = 0;
@@ -483,18 +485,18 @@
 
     if (completed) {
       setupHint.textContent = "Voice setup saved on this device.";
-      calibrateButton.textContent = "Redo voice setup";
-      calibrateButton.disabled = mode !== "idle";
+      calibrateButton.textContent = "Hold to redo voice setup";
+      calibrateButton.disabled = mode === "starting";
     } else {
       if (templates.length === 1) {
-        setupHint.textContent = `For example 2, say "${activePhrase}" slowly, then pause.`;
+        setupHint.textContent = `Hold the button while saying "${activePhrase}" slowly, then release.`;
       } else if (templates.length === 2) {
-        setupHint.textContent = `For example 3, say "${activePhrase}" at your fastest comfortable speed, then pause.`;
+        setupHint.textContent = `Hold the button while saying "${activePhrase}" at your fastest comfortable speed, then release.`;
       } else {
-        setupHint.textContent = `Say "${activePhrase}" once at a natural speed, then briefly pause.`;
+        setupHint.textContent = `Hold the button while saying "${activePhrase}" once at a natural speed, then release.`;
       }
-      calibrateButton.textContent = `Record example ${templates.length + 1}`;
-      calibrateButton.disabled = mode !== "idle";
+      calibrateButton.textContent = `Hold to record example ${templates.length + 1}`;
+      calibrateButton.disabled = mode === "starting";
     }
     restartSetupButton.hidden = completed || (
       templates.length === 0 && mode !== "calibrating" && mode !== "starting"
@@ -676,12 +678,13 @@
     }
 
     const totalFrames = calibrationBuffers.reduce((total, buffer) => total + buffer.length, 0);
-    const silenceMs = framesToMs(calibrationSilenceFrames);
     const totalMs = framesToMs(totalFrames);
-    if (silenceMs >= CONFIG.calibrationSilenceMs || totalMs >= CONFIG.maximumExampleMs) finishCalibrationExample();
+    if (totalMs >= CONFIG.maximumExampleMs) finishCalibrationExample();
   }
 
   function finishCalibrationExample() {
+    calibrationHoldActive = false;
+    calibrationHoldPointerId = null;
     const trailingFrames = Math.min(calibrationSilenceFrames, calibrationBuffers.reduce((sum, item) => sum + item.length, 0));
     const merged = concatenateBuffers(calibrationBuffers);
     const trimmed = merged.slice(0, Math.max(0, merged.length - trailingFrames));
@@ -1301,19 +1304,28 @@
   });
 
   async function beginCalibration() {
+    calibrationHoldActive = true;
     if (templates.length >= CONFIG.requiredExamples) {
       resetVoiceSetup();
       persistState();
     }
     mode = "starting";
     setStatus("starting");
-    calibrateButton.disabled = true;
     heardText.textContent = "Opening the microphone...";
+    updateSetupUi();
     try {
       await ensureMicrophone();
+      if (!calibrationHoldActive) {
+        mode = "idle";
+        stopMicrophone();
+        setStatus("waiting");
+        heardText.textContent = `Hold the button while saying "${activePhrase}", then release to save.`;
+        updateSetupUi();
+        return;
+      }
       mode = "calibrating";
       setStatus("calibrating");
-      heardText.textContent = `Say "${activePhrase}" once, then pause.`;
+      heardText.textContent = `Release when you finish saying "${activePhrase}".`;
       updateSetupUi();
     } catch (error) {
       mode = "idle";
@@ -1326,7 +1338,65 @@
     }
   }
 
-  calibrateButton.addEventListener("click", beginCalibration);
+  function endCalibrationHold() {
+    calibrationHoldActive = false;
+    if (calibrationHoldPointerId !== null) {
+      calibrationHoldPointerId = null;
+    }
+    if (mode !== "calibrating") {
+      return;
+    }
+    if (!calibrationSpeaking) {
+      mode = "idle";
+      stopMicrophone();
+      resetCalibrationCapture();
+      setStatus("waiting");
+      heardText.textContent = `Hold the button while saying "${activePhrase}", then release to save.`;
+      updateSetupUi();
+      return;
+    }
+    finishCalibrationExample();
+  }
+
+  calibrateButton.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    calibrationHoldPointerId = event.pointerId;
+    if (typeof calibrateButton.setPointerCapture === "function") {
+      try {
+        calibrateButton.setPointerCapture(event.pointerId);
+      } catch (_) {
+        // Pointer capture is optional.
+      }
+    }
+    beginCalibration();
+  });
+
+  calibrateButton.addEventListener("pointerup", (event) => {
+    if (calibrationHoldPointerId !== null && event.pointerId !== calibrationHoldPointerId) return;
+    event.preventDefault();
+    endCalibrationHold();
+  });
+
+  calibrateButton.addEventListener("pointercancel", () => {
+    endCalibrationHold();
+  });
+
+  calibrateButton.addEventListener("lostpointercapture", () => {
+    endCalibrationHold();
+  });
+
+  calibrateButton.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    if (!calibrationHoldActive) beginCalibration();
+  });
+
+  calibrateButton.addEventListener("keyup", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    endCalibrationHold();
+  });
 
   restartSetupButton.addEventListener("click", () => {
     mode = "idle";

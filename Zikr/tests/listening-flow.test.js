@@ -180,9 +180,31 @@ vm.createContext(sandbox);
 vm.runInContext(source, sandbox);
 
 async function recordExample(voiceBlocks = 8) {
-  await elements.get("#calibrateButton").handlers.click();
+  const button = elements.get("#calibrateButton");
+  button.handlers.pointerdown({
+    button: 0,
+    pointerId: 1,
+    preventDefault() {},
+  });
+  for (let attempt = 0; attempt < 20 && !currentProcessor; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.resolve();
+  }
+  assert(currentProcessor, "expected calibration processor to be ready");
+  for (let attempt = 0; attempt < 20 && elements.get("#statusText").textContent !== "Voice setup"; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.resolve();
+  }
   for (let block = 0; block < voiceBlocks; block += 1) currentProcessor.emit(voiceBlock(block));
   for (let block = 0; block < 4; block += 1) currentProcessor.emit(silenceBlock);
+  button.handlers.pointerup({
+    pointerId: 1,
+    preventDefault() {},
+  });
+  for (let attempt = 0; attempt < 20 && elements.get("#setupProgress").textContent === "0 of 3"; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.resolve();
+  }
 }
 
 (async () => {
@@ -279,7 +301,7 @@ async function recordExample(voiceBlocks = 8) {
 
   assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
-  assert.strictEqual(elements.get("#calibrateButton").textContent, "Redo voice setup");
+  assert.strictEqual(elements.get("#calibrateButton").textContent, "Hold to redo voice setup");
   assert.strictEqual(elements.get("#startButton").disabled, false);
   assert.strictEqual(microphoneStops, 2);
 
