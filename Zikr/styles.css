@@ -38,6 +38,10 @@ body {
 
 button {
   font: inherit;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -467,6 +471,11 @@ html[data-ui-mode="tap"] .phrase-label {
   font-weight: 700;
   line-height: 1.35;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .preset-button.selected {
@@ -569,12 +578,20 @@ html[data-ui-mode="tap"] .phrase-label {
   min-height: 2.9rem;
   color: var(--primary-dark);
   background: #e6f2ee;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .noise-setup-button {
   min-height: 2.9rem;
   color: #fff;
   background: #2e3b38;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .setup-actions {
@@ -587,6 +604,10 @@ html[data-ui-mode="tap"] .phrase-label {
   min-height: 2.9rem;
   color: #713a12;
   background: #fff1df;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .setup-dialog {
