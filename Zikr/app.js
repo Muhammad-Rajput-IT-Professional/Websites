@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v30";
+  const APP_VERSION = "v32";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -379,7 +379,7 @@
         heardText.textContent = `Target of ${goal} reached.`;
         if ("vibrate" in navigator) navigator.vibrate([120, 70, 180]);
         persistState();
-      } else if (!triggeredByTap) {
+      } else {
         playCountSound();
       }
     }
@@ -903,7 +903,6 @@
         }
         setStatus("speech");
         heardText.textContent = `${activePhrase} matched.`;
-        playCountSound();
         if ("vibrate" in navigator) navigator.vibrate(30);
       }
     } else if (outsideRefractory) {
@@ -1586,7 +1585,9 @@
 
   if (closeTapToolsButton) {
     closeTapToolsButton.addEventListener("click", () => {
-      if (tapToolsDialog.open) tapToolsDialog.close();
+      if (tapToolsDialog.open) {
+        tapToolsDialog.close();
+      }
     });
   }
 
