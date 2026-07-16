@@ -92,9 +92,10 @@ button {
 
 .title-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0.45rem;
+  white-space: nowrap;
 }
 
 .app-version {
@@ -107,6 +108,7 @@ h1 {
   margin: 0;
   font-size: 1.55rem;
   line-height: 1.08;
+  white-space: nowrap;
 }
 
 .status {
@@ -189,6 +191,36 @@ h1 {
 
 .counter-button:active {
   transform: scale(0.98);
+}
+
+html[data-ui-mode="tap"] .counter-panel {
+  gap: 1rem;
+}
+
+html[data-ui-mode="tap"] .topbar {
+  align-items: center;
+}
+
+html[data-ui-mode="tap"] .status,
+html[data-ui-mode="tap"] .controls,
+html[data-ui-mode="tap"] .setup-panel,
+html[data-ui-mode="tap"] .noise-panel,
+html[data-ui-mode="tap"] .mic-meter,
+html[data-ui-mode="tap"] .privacy-note,
+html[data-ui-mode="tap"] .install-button {
+  display: none;
+}
+
+html[data-ui-mode="tap"] .counter-wrap {
+  min-height: clamp(18rem, 58svh, 30rem);
+  padding: 0.25rem 0 0;
+}
+
+html[data-ui-mode="tap"] .counter {
+  width: 100%;
+  min-height: clamp(13rem, 43svh, 20rem);
+  border-radius: 1.15rem;
+  background: rgba(15, 107, 95, 0.06);
 }
 
 .counter-adjustments {

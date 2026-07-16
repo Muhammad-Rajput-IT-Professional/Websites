@@ -34,10 +34,11 @@ for (const selector of [
   "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
+  ".controls", ".setup-panel", ".noise-panel", ".mic-meter", ".privacy-note",
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
   "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
-  "#settingsButton", "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#closeSettingsButton",
+  "#settingsButton", "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#tapCounterToggle", "#closeSettingsButton",
 ]) {
   elements.set(selector, createElement());
 }
@@ -195,9 +196,30 @@ async function recordExample(voiceBlocks = 8) {
   elements.get("#countSoundToggle").handlers.change();
   elements.get("#darkModeToggle").checked = true;
   elements.get("#darkModeToggle").handlers.change();
+  elements.get("#tapCounterToggle").checked = true;
+  elements.get("#tapCounterToggle").handlers.change();
   assert.strictEqual(sandbox.document.documentElement.dataset.theme, "dark");
+  assert.strictEqual(sandbox.document.documentElement.dataset.uiMode, "tap");
+  assert.strictEqual(elements.get(".controls").hidden, true);
+  assert.strictEqual(elements.get(".setup-panel").hidden, true);
+  assert.strictEqual(elements.get(".noise-panel").hidden, true);
+  assert.strictEqual(elements.get(".mic-meter").hidden, true);
+  assert.strictEqual(elements.get(".privacy-note").hidden, true);
+  assert.strictEqual(elements.get("#installAppButton").hidden, true);
   elements.get("#closeSettingsButton").handlers.click();
   assert.strictEqual(elements.get("#settingsDialog").open, false);
+
+  elements.get("#settingsButton").handlers.click();
+  elements.get("#tapCounterToggle").checked = false;
+  elements.get("#tapCounterToggle").handlers.change();
+  assert.strictEqual(sandbox.document.documentElement.dataset.uiMode, "audio");
+  assert.strictEqual(elements.get(".controls").hidden, false);
+  assert.strictEqual(elements.get(".setup-panel").hidden, false);
+  assert.strictEqual(elements.get(".noise-panel").hidden, false);
+  assert.strictEqual(elements.get(".mic-meter").hidden, false);
+  assert.strictEqual(elements.get(".privacy-note").hidden, false);
+  assert.strictEqual(elements.get("#installAppButton").hidden, false);
+  elements.get("#closeSettingsButton").handlers.click();
 
   await elements.get("#installAppButton").handlers.click();
   assert.strictEqual(elements.get("#installHelpDialog").open, true);
@@ -309,6 +331,7 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(saved.profiles["custom:my dhikr"].goal, 1);
   assert.strictEqual(saved.settings.countSoundEnabled, true);
   assert.strictEqual(saved.settings.darkModeEnabled, true);
+  assert.strictEqual(saved.settings.tapCounterModeEnabled, false);
   assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 3);
 
   elements.get("#presetSubhanallah").handlers.click();

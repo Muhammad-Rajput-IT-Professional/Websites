@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v26";
+  const APP_VERSION = "v27";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -41,6 +41,11 @@
 
   const counterEl = document.querySelector("#counter");
   const appVersionEl = document.querySelector("#appVersion");
+  const controlsEl = document.querySelector(".controls");
+  const setupPanelEl = document.querySelector(".setup-panel");
+  const noisePanelEl = document.querySelector(".noise-panel");
+  const micMeterEl = document.querySelector(".mic-meter");
+  const privacyNoteEl = document.querySelector(".privacy-note");
   const startButton = document.querySelector("#startButton");
   const stopButton = document.querySelector("#stopButton");
   const resetButton = document.querySelector("#resetButton");
@@ -85,6 +90,7 @@
   const settingsDialog = document.querySelector("#settingsDialog");
   const countSoundToggle = document.querySelector("#countSoundToggle");
   const darkModeToggle = document.querySelector("#darkModeToggle");
+  const tapCounterToggle = document.querySelector("#tapCounterToggle");
   const closeSettingsButton = document.querySelector("#closeSettingsButton");
 
   const statusLabels = {
@@ -115,6 +121,7 @@
   let deferredInstallPrompt = null;
   let countSoundEnabled = false;
   let darkModeEnabled = false;
+  let tapCounterModeEnabled = false;
   let noiseFloor = 0.004;
   let backgroundNoiseLevel = 0;
   let backgroundCalibrationFrames = 0;
@@ -169,6 +176,7 @@
         settings: {
           countSoundEnabled,
           darkModeEnabled,
+          tapCounterModeEnabled,
         },
       }));
     } catch (_) {
@@ -184,6 +192,7 @@
       if (saved.settings && typeof saved.settings === "object") {
         countSoundEnabled = saved.settings.countSoundEnabled === true;
         darkModeEnabled = saved.settings.darkModeEnabled === true;
+        tapCounterModeEnabled = saved.settings.tapCounterModeEnabled === true;
       }
       if (Number.isFinite(saved.backgroundNoiseLevel) && saved.backgroundNoiseLevel > 0) {
         backgroundNoiseLevel = saved.backgroundNoiseLevel;
@@ -277,12 +286,46 @@
     updateGoalUi();
   }
 
+  function syncTapCounterUi() {
+    const tapMode = tapCounterModeEnabled;
+    document.documentElement.dataset.uiMode = tapMode ? "tap" : "audio";
+    if (statusBadge) statusBadge.hidden = tapMode;
+    if (controlsEl) controlsEl.hidden = tapMode;
+    if (setupPanelEl) setupPanelEl.hidden = tapMode;
+    if (noisePanelEl) noisePanelEl.hidden = tapMode;
+    if (micMeterEl) micMeterEl.hidden = tapMode;
+    if (privacyNoteEl) privacyNoteEl.hidden = tapMode;
+    installAppButton.hidden = tapMode || isRunningAsInstalledApp();
+    counterEl.setAttribute("aria-label", tapMode ? "Tap to add one repetition" : "Add one repetition");
+    startButton.disabled = tapMode || mode !== "idle";
+    stopButton.disabled = true;
+    if (tapCounterToggle) tapCounterToggle.checked = tapMode;
+    if (tapMode) {
+      if (mode !== "idle") {
+        mode = "idle";
+        stopMicrophone();
+        setStatus("waiting");
+      }
+      heardText.textContent = "Tap counter mode is active. Tap the number to count.";
+    } else {
+      heardText.textContent = mode === "listening"
+        ? "Listening for your calibrated phrase..."
+        : templates.length >= CONFIG.requiredExamples
+          ? "Voice setup is ready. Press Start Listening."
+          : `Record three examples of "${activePhrase}" to begin.`;
+      updateSetupUi();
+      updateNoiseSetupUi();
+      updateInstallButton();
+    }
+  }
+
   function applyDisplaySettings() {
     document.documentElement.dataset.theme = darkModeEnabled ? "dark" : "light";
     countSoundToggle.checked = countSoundEnabled;
     darkModeToggle.checked = darkModeEnabled;
     const themeMeta = document.querySelector('meta[name="theme-color"]');
     if (themeMeta) themeMeta.setAttribute("content", darkModeEnabled ? "#101613" : "#0f6b5f");
+    syncTapCounterUi();
   }
 
   function applyManualCount(nextCount, message) {
@@ -365,6 +408,7 @@
     restartSetupButton.disabled = mode === "noise-calibrating";
     startButton.disabled = mode !== "idle";
     stopButton.disabled = mode !== "listening";
+    if (tapCounterModeEnabled) stopButton.disabled = true;
     updateNoiseSetupUi();
   }
 
@@ -1328,7 +1372,7 @@
   }
 
   function updateInstallButton() {
-    installAppButton.hidden = isRunningAsInstalledApp();
+    installAppButton.hidden = tapCounterModeEnabled || isRunningAsInstalledApp();
   }
 
   window.addEventListener("beforeinstallprompt", (event) => {
@@ -1373,6 +1417,7 @@
   settingsButton.addEventListener("click", () => {
     countSoundToggle.checked = countSoundEnabled;
     darkModeToggle.checked = darkModeEnabled;
+    if (tapCounterToggle) tapCounterToggle.checked = tapCounterModeEnabled;
     if (typeof settingsDialog.showModal === "function" && !settingsDialog.open) {
       settingsDialog.showModal();
     }
@@ -1389,6 +1434,14 @@
     applyDisplaySettings();
     persistState();
   });
+
+  if (tapCounterToggle) {
+    tapCounterToggle.addEventListener("change", () => {
+      tapCounterModeEnabled = tapCounterToggle.checked;
+      syncTapCounterUi();
+      persistState();
+    });
+  }
 
   closeSettingsButton.addEventListener("click", () => {
     settingsDialog.close();
@@ -1416,6 +1469,7 @@
   loadPersistedState();
   if (appVersionEl) appVersionEl.textContent = APP_VERSION;
   applyDisplaySettings();
+  syncTapCounterUi();
   const initialPreset = PRESETS[activeProfileKey];
   const initialProfile = profiles[activeProfileKey];
   loadProfile(
