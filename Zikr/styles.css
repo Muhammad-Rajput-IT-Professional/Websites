@@ -205,12 +205,11 @@ html[data-ui-mode="tap"] .topbar {
   align-items: center;
 }
 
-html[data-ui-mode="tap"] .tap-tools-button {
-  display: inline-flex;
-}
-
 html[data-ui-mode="tap"] .status,
 html[data-ui-mode="tap"] .controls,
+html[data-ui-mode="tap"] .goal-panel,
+html[data-ui-mode="tap"] .phrase-picker,
+html[data-ui-mode="tap"] .counter-adjustments,
 html[data-ui-mode="tap"] .setup-panel,
 html[data-ui-mode="tap"] .noise-panel,
 html[data-ui-mode="tap"] .mic-meter,
@@ -229,6 +228,15 @@ html[data-ui-mode="tap"] .counter {
   min-height: clamp(13rem, 43svh, 20rem);
   border-radius: 1.15rem;
   background: rgba(15, 107, 95, 0.06);
+}
+
+html[data-ui-mode="tap"] .counter-label,
+html[data-ui-mode="tap"] .phrase-label {
+  display: none;
+}
+
+html[data-ui-mode="tap"] .tap-tools-button {
+  display: inline-flex;
 }
 
 .tap-tools-dialog {

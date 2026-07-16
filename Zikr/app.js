@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v28";
+  const APP_VERSION = "v29";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -42,6 +42,9 @@
   const counterEl = document.querySelector("#counter");
   const appVersionEl = document.querySelector("#appVersion");
   const controlsEl = document.querySelector(".controls");
+  const goalPanelEl = document.querySelector(".goal-panel");
+  const phrasePickerEl = document.querySelector(".phrase-picker");
+  const counterAdjustmentsEl = document.querySelector(".counter-adjustments");
   const setupPanelEl = document.querySelector(".setup-panel");
   const noisePanelEl = document.querySelector(".noise-panel");
   const micMeterEl = document.querySelector(".mic-meter");
@@ -309,6 +312,9 @@
     if (statusBadge) statusBadge.hidden = tapMode;
     if (tapToolsButton) tapToolsButton.hidden = !tapMode;
     if (controlsEl) controlsEl.hidden = tapMode;
+    if (goalPanelEl) goalPanelEl.hidden = tapMode;
+    if (phrasePickerEl) phrasePickerEl.hidden = tapMode;
+    if (counterAdjustmentsEl) counterAdjustmentsEl.hidden = tapMode;
     if (setupPanelEl) setupPanelEl.hidden = tapMode;
     if (noisePanelEl) noisePanelEl.hidden = tapMode;
     if (micMeterEl) micMeterEl.hidden = tapMode;
@@ -1608,53 +1614,6 @@
   if (tapPresetSalawat) {
     tapPresetSalawat.addEventListener("click", () => {
       loadProfile("salawat_durood", PRESETS.salawat_durood.label);
-      updateTapToolsUi();
-    });
-  }
-
-  if (tapCustomPhraseButton) {
-    tapCustomPhraseButton.addEventListener("click", () => {
-      tapCustomPhraseControl.hidden = false;
-      tapPhraseInput.focus();
-    });
-  }
-
-  if (tapPhraseButton) {
-    tapPhraseButton.addEventListener("click", () => {
-      const nextPhrase = tapPhraseInput.value.trim();
-      if (!nextPhrase) {
-        tapPhraseInput.focus();
-        return;
-      }
-      phraseInput.value = nextPhrase;
-      applyPhrase();
-      updateTapToolsUi();
-    });
-  }
-
-  if (tapPhraseInput) {
-    tapPhraseInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") tapPhraseButton.click();
-    });
-  }
-
-  if (tapPresetAstaghfirullah) {
-    tapPresetAstaghfirullah.addEventListener("click", () => {
-      presetAstaghfirullah.click();
-      updateTapToolsUi();
-    });
-  }
-
-  if (tapPresetSubhanallah) {
-    tapPresetSubhanallah.addEventListener("click", () => {
-      presetSubhanallah.click();
-      updateTapToolsUi();
-    });
-  }
-
-  if (tapPresetSalawat) {
-    tapPresetSalawat.addEventListener("click", () => {
-      presetSalawat.click();
       updateTapToolsUi();
     });
   }
