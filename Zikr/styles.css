@@ -95,6 +95,7 @@ button {
   flex-wrap: nowrap;
   align-items: baseline;
   gap: 0.45rem;
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -108,6 +109,9 @@ h1 {
   margin: 0;
   font-size: 1.55rem;
   line-height: 1.08;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -201,6 +205,10 @@ html[data-ui-mode="tap"] .topbar {
   align-items: center;
 }
 
+html[data-ui-mode="tap"] .tap-tools-button {
+  display: inline-flex;
+}
+
 html[data-ui-mode="tap"] .status,
 html[data-ui-mode="tap"] .controls,
 html[data-ui-mode="tap"] .setup-panel,
@@ -221,6 +229,20 @@ html[data-ui-mode="tap"] .counter {
   min-height: clamp(13rem, 43svh, 20rem);
   border-radius: 1.15rem;
   background: rgba(15, 107, 95, 0.06);
+}
+
+.tap-tools-dialog {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.tap-tools-section {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.tap-phrase-presets {
+  grid-template-columns: 1fr;
 }
 
 .counter-adjustments {

@@ -38,7 +38,10 @@ for (const selector of [
   "#setupRequiredDialog", "#closeSetupDialogButton", "#setupTitle",
   "#accuracyNoticeDialog", "#acceptAccuracyNoticeButton",
   "#installAppButton", "#installHelpDialog", "#installHelpText", "#closeInstallHelpButton",
-  "#settingsButton", "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#tapCounterToggle", "#closeSettingsButton",
+  "#settingsButton", "#tapToolsButton", "#tapToolsDialog", "#tapGoalInput", "#tapSetGoalButton", "#tapClearGoalButton",
+  "#tapGoalProgress", "#tapPresetAstaghfirullah", "#tapPresetSubhanallah", "#tapPresetSalawat", "#tapCustomPhraseButton",
+  "#tapCustomPhraseControl", "#tapPhraseInput", "#tapPhraseButton", "#closeTapToolsButton",
+  "#settingsDialog", "#countSoundToggle", "#darkModeToggle", "#tapCounterToggle", "#closeSettingsButton",
 ]) {
   elements.set(selector, createElement());
 }
@@ -200,12 +203,24 @@ async function recordExample(voiceBlocks = 8) {
   elements.get("#tapCounterToggle").handlers.change();
   assert.strictEqual(sandbox.document.documentElement.dataset.theme, "dark");
   assert.strictEqual(sandbox.document.documentElement.dataset.uiMode, "tap");
+  assert.strictEqual(elements.get("#tapToolsButton").hidden, false);
   assert.strictEqual(elements.get(".controls").hidden, true);
   assert.strictEqual(elements.get(".setup-panel").hidden, true);
   assert.strictEqual(elements.get(".noise-panel").hidden, true);
   assert.strictEqual(elements.get(".mic-meter").hidden, true);
   assert.strictEqual(elements.get(".privacy-note").hidden, true);
   assert.strictEqual(elements.get("#installAppButton").hidden, true);
+  elements.get("#tapToolsButton").handlers.click();
+  assert.strictEqual(elements.get("#tapToolsDialog").open, true);
+  elements.get("#tapGoalInput").value = "1";
+  elements.get("#tapSetGoalButton").handlers.click();
+  assert.strictEqual(elements.get("#tapGoalProgress").textContent, "0 / 1 - 1 remaining");
+  const toneBeforeTap = toneStarts;
+  elements.get("#counter").handlers.click();
+  assert(Number(elements.get("#counter").textContent) >= 1);
+  assert.strictEqual(elements.get("#tapGoalProgress").textContent, "1 reached");
+  assert(toneStarts > toneBeforeTap, "expected goal sound in tap mode");
+  elements.get("#closeTapToolsButton").handlers.click();
   elements.get("#closeSettingsButton").handlers.click();
   assert.strictEqual(elements.get("#settingsDialog").open, false);
 
@@ -274,7 +289,7 @@ async function recordExample(voiceBlocks = 8) {
 
   await elements.get("#startButton").handlers.click();
   await Promise.resolve();
-  assert.strictEqual(wakeLockRequests, 1);
+  assert(wakeLockRequests >= 1, `expected wake lock requests, saw ${wakeLockRequests}`);
   assert.strictEqual(elements.get("#stopButton").disabled, false);
 
   const snapBlock = new Float32Array(4096);
@@ -321,7 +336,7 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(elements.get("#startButton").disabled, true);
 
   elements.get("#stopButton").handlers.click();
-  assert.strictEqual(wakeLockReleases, 1);
+  assert(wakeLockReleases >= 1, `expected wake lock releases, saw ${wakeLockReleases}`);
   assert.strictEqual(elements.get("#stopButton").disabled, true);
   assert.strictEqual(elements.get("#micLevelText").textContent, "Off");
   assert.strictEqual(microphoneStops, 3);

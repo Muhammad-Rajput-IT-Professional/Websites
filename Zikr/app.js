@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v27";
+  const APP_VERSION = "v28";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -46,6 +46,7 @@
   const noisePanelEl = document.querySelector(".noise-panel");
   const micMeterEl = document.querySelector(".mic-meter");
   const privacyNoteEl = document.querySelector(".privacy-note");
+  const tapToolsButton = document.querySelector("#tapToolsButton");
   const startButton = document.querySelector("#startButton");
   const stopButton = document.querySelector("#stopButton");
   const resetButton = document.querySelector("#resetButton");
@@ -88,6 +89,19 @@
   const closeInstallHelpButton = document.querySelector("#closeInstallHelpButton");
   const settingsButton = document.querySelector("#settingsButton");
   const settingsDialog = document.querySelector("#settingsDialog");
+  const tapToolsDialog = document.querySelector("#tapToolsDialog");
+  const tapGoalInput = document.querySelector("#tapGoalInput");
+  const tapSetGoalButton = document.querySelector("#tapSetGoalButton");
+  const tapClearGoalButton = document.querySelector("#tapClearGoalButton");
+  const tapGoalProgress = document.querySelector("#tapGoalProgress");
+  const tapPresetAstaghfirullah = document.querySelector("#tapPresetAstaghfirullah");
+  const tapPresetSubhanallah = document.querySelector("#tapPresetSubhanallah");
+  const tapPresetSalawat = document.querySelector("#tapPresetSalawat");
+  const tapCustomPhraseButton = document.querySelector("#tapCustomPhraseButton");
+  const tapCustomPhraseControl = document.querySelector("#tapCustomPhraseControl");
+  const tapPhraseInput = document.querySelector("#tapPhraseInput");
+  const tapPhraseButton = document.querySelector("#tapPhraseButton");
+  const closeTapToolsButton = document.querySelector("#closeTapToolsButton");
   const countSoundToggle = document.querySelector("#countSoundToggle");
   const darkModeToggle = document.querySelector("#darkModeToggle");
   const tapCounterToggle = document.querySelector("#tapCounterToggle");
@@ -112,6 +126,7 @@
   let mode = "idle";
   let microphoneStream = null;
   let audioContext = null;
+  let cueAudioContext = null;
   let sourceNode = null;
   let processorNode = null;
   let silentOutputNode = null;
@@ -240,6 +255,7 @@
     updatePhrasePickerUi();
     updateSetupUi();
     updateNoiseSetupUi();
+    updateTapToolsUi();
     heardText.textContent = templates.length >= CONFIG.requiredExamples
       ? "Voice setup is ready. Press Start Listening."
       : `Record three examples of "${activePhrase}" to begin.`;
@@ -284,12 +300,14 @@
   function updateCounter() {
     counterEl.textContent = String(count);
     updateGoalUi();
+    updateTapGoalUi();
   }
 
   function syncTapCounterUi() {
     const tapMode = tapCounterModeEnabled;
     document.documentElement.dataset.uiMode = tapMode ? "tap" : "audio";
     if (statusBadge) statusBadge.hidden = tapMode;
+    if (tapToolsButton) tapToolsButton.hidden = !tapMode;
     if (controlsEl) controlsEl.hidden = tapMode;
     if (setupPanelEl) setupPanelEl.hidden = tapMode;
     if (noisePanelEl) noisePanelEl.hidden = tapMode;
@@ -328,6 +346,26 @@
     syncTapCounterUi();
   }
 
+  function incrementCount(triggeredByTap = false) {
+    const previousCount = count;
+    const shouldAnnounceGoal = goal > 0 && count + 1 >= goal && !goalCelebrated;
+    applyManualCount(
+      count + 1,
+      count < MAX_COUNTER_VALUE ? "Counter increased by one." : "Counter is at its maximum value.",
+    );
+    if (count > previousCount) {
+      if (shouldAnnounceGoal) {
+        goalCelebrated = true;
+        playGoalSound();
+        heardText.textContent = `Target of ${goal} reached.`;
+        if ("vibrate" in navigator) navigator.vibrate([120, 70, 180]);
+        persistState();
+      } else if (!triggeredByTap) {
+        playCountSound();
+      }
+    }
+  }
+
   function applyManualCount(nextCount, message) {
     count = Math.min(MAX_COUNTER_VALUE, Math.max(0, Math.floor(nextCount)));
     goalCelebrated = goal > 0 && count >= goal;
@@ -352,16 +390,31 @@
   });
 
   function incrementManually() {
-    const previousCount = count;
-    applyManualCount(
-      count + 1,
-      count < MAX_COUNTER_VALUE ? "Counter increased by one." : "Counter is at its maximum value.",
-    );
-    if (count > previousCount) playCountSound();
+    incrementCount(false);
   }
 
   incrementButton.addEventListener("click", incrementManually);
-  counterEl.addEventListener("click", incrementManually);
+  counterEl.addEventListener("click", () => {
+    if (tapCounterModeEnabled) {
+      wakeLockDesired = true;
+      requestScreenWakeLock();
+      incrementCount(true);
+      return;
+    }
+    incrementManually();
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!tapCounterModeEnabled || isInteractiveTapTarget(event.target)) return;
+    wakeLockDesired = true;
+    requestScreenWakeLock();
+    incrementCount(true);
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!tapCounterModeEnabled || isInteractiveTapTarget(event.target)) return;
+    incrementCount(true);
+  });
 
   setCounterButton.addEventListener("click", setCounterFromInput);
   counterValueInput.addEventListener("keydown", (event) => {
@@ -381,6 +434,28 @@
       ? `${count} / ${goal} - ${remaining} remaining`
       : `${goal} reached`;
     clearGoalButton.hidden = false;
+  }
+
+  function updateTapGoalUi() {
+    if (!tapGoalInput || !tapGoalProgress || !tapClearGoalButton) return;
+    if (!goal) {
+      tapGoalInput.value = "";
+      tapGoalProgress.textContent = "No target set";
+      tapClearGoalButton.hidden = true;
+      return;
+    }
+    const remaining = Math.max(0, goal - count);
+    tapGoalInput.value = String(goal);
+    tapGoalProgress.textContent = remaining
+      ? `${count} / ${goal} - ${remaining} remaining`
+      : `${goal} reached`;
+    tapClearGoalButton.hidden = false;
+  }
+
+  function isInteractiveTapTarget(target) {
+    return Boolean(target && target.closest && target.closest(
+      "button, input, label, dialog, select, textarea, a, summary",
+    ));
   }
 
   function updateSetupUi() {
@@ -410,6 +485,26 @@
     stopButton.disabled = mode !== "listening";
     if (tapCounterModeEnabled) stopButton.disabled = true;
     updateNoiseSetupUi();
+  }
+
+  function updateTapToolsUi() {
+    if (!tapToolsDialog) return;
+    if (tapPresetAstaghfirullah) {
+      tapPresetAstaghfirullah.className = `preset-button${activeProfileKey === "astaghfirullah" ? " selected" : ""}`;
+    }
+    if (tapPresetSubhanallah) {
+      tapPresetSubhanallah.className = `preset-button${activeProfileKey === "subhanallah_wabihamdihi" ? " selected" : ""}`;
+    }
+    if (tapPresetSalawat) {
+      tapPresetSalawat.className = `preset-button${activeProfileKey === "salawat_durood" ? " selected" : ""}`;
+    }
+    const customSelected = activeProfileKey.startsWith("custom:");
+    if (tapCustomPhraseButton) {
+      tapCustomPhraseButton.className = `preset-button${customSelected ? " selected" : ""}`;
+    }
+    if (tapCustomPhraseControl) tapCustomPhraseControl.hidden = !customSelected;
+    if (customSelected && tapPhraseInput) tapPhraseInput.value = activePhrase;
+    updateTapGoalUi();
   }
 
   function updateNoiseSetupUi() {
@@ -782,16 +877,15 @@
         lastDetectionTime = candidateTime;
         matchCandidateStreak = 0;
         voicedSamplesSinceDetection = 0;
-        count += 1;
-        updateCounter();
-        persistState();
+        incrementCount(false);
+        if (goalCelebrated && goal && count >= goal) {
+          setStatus("speech");
+          return;
+        }
         setStatus("speech");
         heardText.textContent = `${activePhrase} matched.`;
-        const reachedGoal = checkGoalReached();
-        if (!reachedGoal) {
-          playCountSound();
-          if ("vibrate" in navigator) navigator.vibrate(30);
-        }
+        playCountSound();
+        if ("vibrate" in navigator) navigator.vibrate(30);
       }
     } else if (outsideRefractory) {
       matchCandidateStreak = 0;
@@ -989,18 +1083,25 @@
 
   function playGoalSound() {
     try {
-      if (!audioContext || audioContext.state !== "running") return;
-      const startAt = audioContext.currentTime;
+      const playbackContext = audioContext && audioContext.state === "running"
+        ? audioContext
+        : cueAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioContext && !cueAudioContext) {
+        cueAudioContext = playbackContext;
+      }
+      if (playbackContext.state === "suspended") playbackContext.resume().catch(() => {});
+      if (playbackContext.state !== "running") return;
+      const startAt = playbackContext.currentTime;
       [523.25, 659.25, 783.99].forEach((frequency, index) => {
-        const oscillator = audioContext.createOscillator();
-        const gain = audioContext.createGain();
+        const oscillator = playbackContext.createOscillator();
+        const gain = playbackContext.createGain();
         const noteStart = startAt + index * 0.14;
         oscillator.frequency.value = frequency;
         gain.gain.setValueAtTime(0.0001, noteStart);
         gain.gain.exponentialRampToValueAtTime(0.16, noteStart + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.22);
         oscillator.connect(gain);
-        gain.connect(audioContext.destination);
+        gain.connect(playbackContext.destination);
         oscillator.start(noteStart);
         oscillator.stop(noteStart + 0.23);
       });
@@ -1012,10 +1113,17 @@
   function playCountSound() {
     if (!countSoundEnabled) return;
     try {
-      if (!audioContext || audioContext.state !== "running") return;
-      const startAt = audioContext.currentTime;
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
+      const playbackContext = audioContext && audioContext.state === "running"
+        ? audioContext
+        : cueAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioContext && !cueAudioContext) {
+        cueAudioContext = playbackContext;
+      }
+      if (playbackContext.state === "suspended") playbackContext.resume().catch(() => {});
+      if (playbackContext.state !== "running") return;
+      const startAt = playbackContext.currentTime;
+      const oscillator = playbackContext.createOscillator();
+      const gain = playbackContext.createGain();
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(880, startAt);
       oscillator.frequency.exponentialRampToValueAtTime(660, startAt + 0.11);
@@ -1023,7 +1131,7 @@
       gain.gain.exponentialRampToValueAtTime(0.11, startAt + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.13);
       oscillator.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(playbackContext.destination);
       oscillator.start(startAt);
       oscillator.stop(startAt + 0.14);
     } catch (_) {
@@ -1042,7 +1150,6 @@
   }
 
   function stopMicrophone() {
-    releaseScreenWakeLock();
     if (processorNode) {
       processorNode.removeEventListener("audioprocess", handleAudioProcess);
       processorNode.disconnect();
@@ -1439,6 +1546,8 @@
     tapCounterToggle.addEventListener("change", () => {
       tapCounterModeEnabled = tapCounterToggle.checked;
       syncTapCounterUi();
+      wakeLockDesired = true;
+      requestScreenWakeLock();
       persistState();
     });
   }
@@ -1446,6 +1555,135 @@
   closeSettingsButton.addEventListener("click", () => {
     settingsDialog.close();
   });
+
+  if (tapToolsButton) {
+    tapToolsButton.addEventListener("click", () => {
+      updateTapToolsUi();
+      if (typeof tapToolsDialog.showModal === "function" && !tapToolsDialog.open) {
+        tapToolsDialog.showModal();
+      }
+    });
+  }
+
+  if (closeTapToolsButton) {
+    closeTapToolsButton.addEventListener("click", () => {
+      tapToolsDialog.close();
+    });
+  }
+
+  if (tapSetGoalButton) {
+    tapSetGoalButton.addEventListener("click", () => {
+      goalInput.value = tapGoalInput.value;
+      setGoal();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapClearGoalButton) {
+    tapClearGoalButton.addEventListener("click", () => {
+      goal = 0;
+      goalCelebrated = false;
+      goalInput.value = "";
+      updateGoalUi();
+      persistState();
+      heardText.textContent = "Target cleared.";
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPresetAstaghfirullah) {
+    tapPresetAstaghfirullah.addEventListener("click", () => {
+      loadProfile("astaghfirullah", PRESETS.astaghfirullah.label);
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPresetSubhanallah) {
+    tapPresetSubhanallah.addEventListener("click", () => {
+      loadProfile("subhanallah_wabihamdihi", PRESETS.subhanallah_wabihamdihi.label);
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPresetSalawat) {
+    tapPresetSalawat.addEventListener("click", () => {
+      loadProfile("salawat_durood", PRESETS.salawat_durood.label);
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapCustomPhraseButton) {
+    tapCustomPhraseButton.addEventListener("click", () => {
+      tapCustomPhraseControl.hidden = false;
+      tapPhraseInput.focus();
+    });
+  }
+
+  if (tapPhraseButton) {
+    tapPhraseButton.addEventListener("click", () => {
+      const nextPhrase = tapPhraseInput.value.trim();
+      if (!nextPhrase) {
+        tapPhraseInput.focus();
+        return;
+      }
+      phraseInput.value = nextPhrase;
+      applyPhrase();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPhraseInput) {
+    tapPhraseInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") tapPhraseButton.click();
+    });
+  }
+
+  if (tapPresetAstaghfirullah) {
+    tapPresetAstaghfirullah.addEventListener("click", () => {
+      presetAstaghfirullah.click();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPresetSubhanallah) {
+    tapPresetSubhanallah.addEventListener("click", () => {
+      presetSubhanallah.click();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPresetSalawat) {
+    tapPresetSalawat.addEventListener("click", () => {
+      presetSalawat.click();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapCustomPhraseButton) {
+    tapCustomPhraseButton.addEventListener("click", () => {
+      tapCustomPhraseControl.hidden = false;
+      tapPhraseInput.focus();
+    });
+  }
+
+  if (tapPhraseButton) {
+    tapPhraseButton.addEventListener("click", () => {
+      const nextPhrase = tapPhraseInput.value.trim();
+      if (!nextPhrase) {
+        tapPhraseInput.focus();
+        return;
+      }
+      phraseInput.value = nextPhrase;
+      applyPhrase();
+      updateTapToolsUi();
+    });
+  }
+
+  if (tapPhraseInput) {
+    tapPhraseInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") tapPhraseButton.click();
+    });
+  }
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -1457,10 +1695,11 @@
     persistState();
     mode = "idle";
     stopMicrophone();
+    releaseScreenWakeLock();
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && mode === "listening") {
+    if (document.visibilityState === "visible") {
       wakeLockDesired = true;
       requestScreenWakeLock();
     }
@@ -1469,6 +1708,7 @@
   loadPersistedState();
   if (appVersionEl) appVersionEl.textContent = APP_VERSION;
   applyDisplaySettings();
+  wakeLockDesired = true;
   syncTapCounterUi();
   const initialPreset = PRESETS[activeProfileKey];
   const initialProfile = profiles[activeProfileKey];

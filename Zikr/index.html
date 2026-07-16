@@ -19,7 +19,7 @@
           <div>
             <div class="title-row">
               <h1 id="app-title">Dhikr Counter</h1>
-              <span id="appVersion" class="app-version">v27</span>
+              <span id="appVersion" class="app-version">v28</span>
             </div>
           </div>
           <div class="topbar-actions">
@@ -27,6 +27,7 @@
               <span class="status-dot" aria-hidden="true"></span>
               <span id="statusText">Waiting</span>
             </div>
+            <button id="tapToolsButton" class="settings-button tap-tools-button" type="button" aria-label="Tap mode tools" title="Tap mode tools" hidden>&#9776;</button>
             <button id="settingsButton" class="settings-button" type="button" aria-label="Settings" title="Settings">&#9881;</button>
           </div>
         </div>
@@ -180,7 +181,39 @@
       <button id="closeSettingsButton" class="button primary" type="button">Done</button>
     </dialog>
 
+    <dialog id="tapToolsDialog" class="setup-dialog tap-tools-dialog" aria-labelledby="tapToolsTitle">
+      <h2 id="tapToolsTitle">Tap mode tools</h2>
+      <section class="tap-tools-section" aria-labelledby="tapToolsGoalTitle">
+        <div class="goal-heading">
+          <label id="tapToolsGoalTitle" for="tapGoalInput">Target count</label>
+          <span id="tapGoalProgress">No target set</span>
+        </div>
+        <div class="goal-controls">
+          <input id="tapGoalInput" type="number" min="1" max="100000" inputmode="numeric" placeholder="e.g. 100" />
+          <button id="tapSetGoalButton" class="button goal-button" type="button">Set target</button>
+          <button id="tapClearGoalButton" class="button goal-clear-button" type="button" hidden>Clear</button>
+        </div>
+      </section>
+      <section class="tap-tools-section" aria-labelledby="tapToolsPhraseTitle">
+        <p id="tapToolsPhraseTitle" class="field-label">Choose dhikr</p>
+        <div class="phrase-presets tap-phrase-presets">
+          <button id="tapPresetAstaghfirullah" class="preset-button selected" type="button" dir="rtl">أَسْتَغْفِرُ اللَّهَ</button>
+          <button id="tapPresetSubhanallah" class="preset-button" type="button" dir="rtl">سُبْحَانَ اللَّهِ وَبِحَمْدِهِ</button>
+          <button id="tapPresetSalawat" class="preset-button" type="button">Salawat / Durood</button>
+          <button id="tapCustomPhraseButton" class="preset-button" type="button">Other / Custom</button>
+        </div>
+        <div id="tapCustomPhraseControl" class="phrase-control" hidden>
+          <label for="tapPhraseInput">Custom phrase name</label>
+          <div class="phrase-input-row">
+            <input id="tapPhraseInput" type="text" maxlength="60" autocomplete="off" placeholder="Enter a dhikr phrase" />
+            <button id="tapPhraseButton" class="button phrase-button" type="button">Use phrase</button>
+          </div>
+        </div>
+      </section>
+      <button id="closeTapToolsButton" class="button primary" type="button">Done</button>
+    </dialog>
+
     <script src="./vendor/meyda.min.js"></script>
-    <script src="./app.js?v=27"></script>
+    <script src="./app.js?v=28"></script>
   </body>
 </html>
