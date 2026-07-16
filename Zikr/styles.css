@@ -205,6 +205,10 @@ html[data-ui-mode="tap"] .topbar {
   align-items: center;
 }
 
+html[data-ui-mode="tap"] .tap-tools-button {
+  display: none;
+}
+
 html[data-ui-mode="tap"] .status,
 html[data-ui-mode="tap"] .controls,
 html[data-ui-mode="tap"] .goal-panel,
@@ -235,8 +239,10 @@ html[data-ui-mode="tap"] .phrase-label {
   display: none;
 }
 
-html[data-ui-mode="tap"] .tap-tools-button {
-  display: inline-flex;
+@media (hover: hover) and (pointer: fine) {
+  html[data-ui-mode="tap"] .tap-tools-button {
+    display: inline-flex;
+  }
 }
 
 .tap-tools-dialog {

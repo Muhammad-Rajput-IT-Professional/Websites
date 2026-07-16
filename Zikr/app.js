@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v29";
+  const APP_VERSION = "v30";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -175,6 +175,19 @@
     )).slice(0, CONFIG.requiredExamples);
   }
 
+  function supportsDesktopTapTools() {
+    if (typeof window.matchMedia === "function") {
+      return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    }
+    if (typeof window.innerWidth === "number" && window.innerWidth > 0 && window.innerWidth < 768) {
+      return false;
+    }
+    if (typeof navigator.maxTouchPoints === "number") {
+      return navigator.maxTouchPoints === 0;
+    }
+    return true;
+  }
+
   function saveCurrentProfile() {
     profiles[activeProfileKey] = {
       label: activePhrase,
@@ -310,7 +323,7 @@
     const tapMode = tapCounterModeEnabled;
     document.documentElement.dataset.uiMode = tapMode ? "tap" : "audio";
     if (statusBadge) statusBadge.hidden = tapMode;
-    if (tapToolsButton) tapToolsButton.hidden = !tapMode;
+    if (tapToolsButton) tapToolsButton.hidden = !tapMode || !supportsDesktopTapTools();
     if (controlsEl) controlsEl.hidden = tapMode;
     if (goalPanelEl) goalPanelEl.hidden = tapMode;
     if (phrasePickerEl) phrasePickerEl.hidden = tapMode;
@@ -1573,7 +1586,13 @@
 
   if (closeTapToolsButton) {
     closeTapToolsButton.addEventListener("click", () => {
-      tapToolsDialog.close();
+      if (tapToolsDialog.open) tapToolsDialog.close();
+    });
+  }
+
+  if (tapToolsDialog) {
+    tapToolsDialog.addEventListener("close", () => {
+      updateTapToolsUi();
     });
   }
 
