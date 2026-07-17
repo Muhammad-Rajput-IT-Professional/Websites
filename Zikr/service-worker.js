@@ -1,4 +1,4 @@
-const CACHE_NAME = "dhikr-counter-v35";
+const CACHE_NAME = "dhikr-counter-v36";
 const APP_SHELL = [
   "./",
   "./index.html",

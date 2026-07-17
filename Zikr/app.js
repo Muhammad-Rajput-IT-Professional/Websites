@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v35";
+  const APP_VERSION = "v36";
   const CONFIG = Object.freeze({
     requiredExamples: 3,
     outputSampleRate: 16000,
@@ -151,7 +151,6 @@
   let calibrationBuffers = [];
   let calibrationHoldActive = false;
   let calibrationHoldPointerId = null;
-  let calibrationHoldListenersAttached = false;
 
   let templates = [];
   let expectedDurationSamples = 0;
@@ -487,6 +486,7 @@
     if (completed) {
       setupHint.textContent = "Voice setup saved on this device.";
       calibrateButton.textContent = "Hold to redo voice setup";
+      calibrateButton.disabled = mode === "starting";
     } else {
       if (templates.length === 1) {
         setupHint.textContent = `Hold the button while saying "${activePhrase}" slowly, then release.`;
@@ -496,6 +496,7 @@
         setupHint.textContent = `Hold the button while saying "${activePhrase}" once at a natural speed, then release.`;
       }
       calibrateButton.textContent = `Hold to record example ${templates.length + 1}`;
+      calibrateButton.disabled = mode === "starting";
     }
     restartSetupButton.hidden = completed || (
       templates.length === 0 && mode !== "calibrating" && mode !== "starting"
@@ -1303,7 +1304,6 @@
   });
 
   async function beginCalibration() {
-    if (calibrationHoldActive && mode !== "idle" && mode !== "starting" && mode !== "calibrating") return;
     calibrationHoldActive = true;
     if (templates.length >= CONFIG.requiredExamples) {
       resetVoiceSetup();
@@ -1320,7 +1320,6 @@
         stopMicrophone();
         setStatus("waiting");
         heardText.textContent = `Hold the button while saying "${activePhrase}", then release to save.`;
-        detachCalibrationHoldListeners();
         updateSetupUi();
         return;
       }
@@ -1331,7 +1330,6 @@
     } catch (error) {
       mode = "idle";
       stopMicrophone();
-      detachCalibrationHoldListeners();
       setStatus("unavailable");
       heardText.textContent = error.name === "NotAllowedError"
         ? "Microphone permission was denied. Allow it in browser settings and try again."
@@ -1341,7 +1339,6 @@
   }
 
   function endCalibrationHold() {
-    if (!calibrationHoldActive && mode !== "starting" && mode !== "calibrating") return;
     calibrationHoldActive = false;
     if (calibrationHoldPointerId !== null) {
       calibrationHoldPointerId = null;
@@ -1356,62 +1353,13 @@
       setStatus("waiting");
       heardText.textContent = `Hold the button while saying "${activePhrase}", then release to save.`;
       updateSetupUi();
-      detachCalibrationHoldListeners();
       return;
     }
     finishCalibrationExample();
-    detachCalibrationHoldListeners();
-  }
-
-  function detachCalibrationHoldListeners() {
-    if (!calibrationHoldListenersAttached) return;
-    calibrationHoldListenersAttached = false;
-    if (typeof document.removeEventListener === "function") {
-      document.removeEventListener("pointerup", handleCalibrationPointerRelease, true);
-      document.removeEventListener("pointercancel", handleCalibrationPointerRelease, true);
-      document.removeEventListener("mouseup", handleCalibrationPointerRelease, true);
-      document.removeEventListener("touchend", handleCalibrationPointerRelease, true);
-      document.removeEventListener("touchcancel", handleCalibrationPointerRelease, true);
-      document.removeEventListener("visibilitychange", handleCalibrationVisibilityChange, true);
-    }
-    if (typeof window.removeEventListener === "function") {
-      window.removeEventListener("blur", handleCalibrationPointerRelease, true);
-    }
-  }
-
-  function attachCalibrationHoldListeners() {
-    if (calibrationHoldListenersAttached) return;
-    calibrationHoldListenersAttached = true;
-    if (typeof document.addEventListener === "function") {
-      document.addEventListener("pointerup", handleCalibrationPointerRelease, true);
-      document.addEventListener("pointercancel", handleCalibrationPointerRelease, true);
-      document.addEventListener("mouseup", handleCalibrationPointerRelease, true);
-      document.addEventListener("touchend", handleCalibrationPointerRelease, true);
-      document.addEventListener("touchcancel", handleCalibrationPointerRelease, true);
-      document.addEventListener("visibilitychange", handleCalibrationVisibilityChange, true);
-    }
-    if (typeof window.addEventListener === "function") {
-      window.addEventListener("blur", handleCalibrationPointerRelease, true);
-    }
-  }
-
-  function handleCalibrationVisibilityChange() {
-    if (document.visibilityState !== "visible") {
-      endCalibrationHold();
-    }
-  }
-
-  function handleCalibrationPointerRelease(event) {
-    if (calibrationHoldPointerId !== null && "pointerId" in event && event.pointerId !== calibrationHoldPointerId) {
-      return;
-    }
-    if (typeof event.preventDefault === "function") event.preventDefault();
-    endCalibrationHold();
   }
 
   calibrateButton.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
-    if (calibrationHoldActive) return;
     event.preventDefault();
     calibrationHoldPointerId = event.pointerId;
     if (typeof calibrateButton.setPointerCapture === "function") {
@@ -1421,7 +1369,6 @@
         // Pointer capture is optional.
       }
     }
-    attachCalibrationHoldListeners();
     beginCalibration();
   });
 
