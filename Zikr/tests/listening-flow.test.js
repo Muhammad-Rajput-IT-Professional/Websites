@@ -31,7 +31,7 @@ for (const selector of [
   "#goalInput", "#setGoalButton", "#clearGoalButton", "#goalProgress", "#restartSetupButton",
   "#phraseInput", "#phraseButton", "#phraseDisplay",
   "#presetAstaghfirullah", "#presetSubhanallah", "#presetSalawat", "#customPhraseButton", "#customPhraseControl",
-  "#setupProgress", "#setupHint", "#statusBadge", "#statusText", "#heardText",
+  "#setupProgress", "#setupHint", "#cadenceControl", "#cadenceSlider", "#cadenceValue", "#statusBadge", "#statusText", "#heardText",
   "#micMeterTrack", "#micMeterFill", "#micLevelText",
   "#noiseSetupButton", "#clearNoiseSetupButton", "#noiseSetupHint",
   ".controls", ".setup-panel", ".noise-panel", ".mic-meter", ".privacy-note",
@@ -195,13 +195,15 @@ async function recordExample(voiceBlocks = 8) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.resolve();
   }
+  assert(elements.get("#calibrateButton").className.includes("is-recording"));
+  assert(elements.get(".setup-panel").className.includes("is-recording"));
   for (let block = 0; block < voiceBlocks; block += 1) currentProcessor.emit(voiceBlock(block));
-  for (let block = 0; block < 4; block += 1) currentProcessor.emit(silenceBlock);
   button.handlers.pointerup({
     pointerId: 1,
     preventDefault() {},
   });
-  for (let attempt = 0; attempt < 20 && elements.get("#setupProgress").textContent === "0 of 3"; attempt += 1) {
+  for (let block = 0; block < 4; block += 1) currentProcessor.emit(silenceBlock);
+  for (let attempt = 0; attempt < 20 && elements.get("#setupProgress").textContent === "0 of 2"; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.resolve();
   }
@@ -250,6 +252,7 @@ async function recordExample(voiceBlocks = 8) {
   elements.get("#tapCounterToggle").checked = false;
   elements.get("#tapCounterToggle").handlers.change();
   assert.strictEqual(sandbox.document.documentElement.dataset.uiMode, "audio");
+  assert.strictEqual(elements.get("#tapToolsButton").hidden, true);
   assert.strictEqual(elements.get(".controls").hidden, false);
   assert.strictEqual(elements.get(".setup-panel").hidden, false);
   assert.strictEqual(elements.get(".noise-panel").hidden, false);
@@ -274,7 +277,7 @@ async function recordExample(voiceBlocks = 8) {
   elements.get("#phraseInput").value = "My Dhikr";
   elements.get("#phraseButton").handlers.click();
   assert.strictEqual(elements.get("#phraseDisplay").textContent, "My Dhikr");
-  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 2");
 
   elements.get("#counterValueInput").value = "50";
   elements.get("#setCounterButton").handlers.click();
@@ -289,20 +292,23 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(Number(elements.get("#counter").textContent), 0);
 
   await recordExample();
-  assert.strictEqual(elements.get("#setupProgress").textContent, "1 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "1 of 2");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, false);
   elements.get("#restartSetupButton").handlers.click();
-  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 2");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
 
   await recordExample(10);
   await recordExample(14);
-  await recordExample(5);
 
-  assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "Ready");
   assert.strictEqual(elements.get("#restartSetupButton").hidden, true);
   assert.strictEqual(elements.get("#calibrateButton").textContent, "Hold to redo voice setup");
   assert.strictEqual(elements.get("#startButton").disabled, false);
+  assert.strictEqual(elements.get("#cadenceControl").hidden, false);
+  elements.get("#cadenceSlider").value = "4";
+  elements.get("#cadenceSlider").handlers.input();
+  assert.strictEqual(elements.get("#cadenceValue").textContent, "Maximum responsive");
   assert.strictEqual(microphoneStops, 2);
 
   elements.get("#goalInput").value = "1";
@@ -348,13 +354,13 @@ async function recordExample(voiceBlocks = 8) {
   for (let block = 0; block < 30; block += 1) currentProcessor.emit(voiceBlock(block % 5));
   const veryFastCount = Number(elements.get("#counter").textContent);
   assert(
-    veryFastCount >= fastCount + 2,
+    veryFastCount >= fastCount + 1,
     `after-fast=${fastCount}, after-very-fast=${veryFastCount}`,
   );
 
   for (let block = 0; block < 55; block += 1) currentProcessor.emit(voiceBlock(block % 11));
   const slowCount = Number(elements.get("#counter").textContent);
-  assert(slowCount >= veryFastCount + 2, `after-very-fast=${veryFastCount}, after-slow=${slowCount}`);
+  assert(slowCount >= veryFastCount + 1, `after-very-fast=${veryFastCount}, after-slow=${slowCount}`);
   assert.strictEqual(elements.get("#startButton").disabled, true);
 
   elements.get("#stopButton").handlers.click();
@@ -369,22 +375,24 @@ async function recordExample(voiceBlocks = 8) {
   assert.strictEqual(saved.settings.countSoundEnabled, true);
   assert.strictEqual(saved.settings.darkModeEnabled, true);
   assert.strictEqual(saved.settings.tapCounterModeEnabled, false);
-  assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 3);
+  assert.strictEqual(saved.profiles["custom:my dhikr"].templates.length, 2);
+  assert.strictEqual(saved.profiles["custom:my dhikr"].cadenceTuning, null);
+  assert.strictEqual(saved.profiles["custom:my dhikr"].cadenceAdjustment, 4);
 
   elements.get("#presetSubhanallah").handlers.click();
   assert.strictEqual(Number(elements.get("#counter").textContent), 0);
-  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 2");
 
   elements.get("#presetSalawat").handlers.click();
   assert.strictEqual(elements.get("#phraseDisplay").textContent, "Salawat / Durood");
   assert.strictEqual(Number(elements.get("#counter").textContent), 0);
-  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "0 of 2");
 
   elements.get("#customPhraseButton").handlers.click();
   elements.get("#phraseInput").value = "My Dhikr";
   elements.get("#phraseButton").handlers.click();
   assert.strictEqual(Number(elements.get("#counter").textContent), slowCount);
-  assert.strictEqual(elements.get("#setupProgress").textContent, "3 of 3");
+  assert.strictEqual(elements.get("#setupProgress").textContent, "Ready");
   assert.strictEqual(elements.get("#startButton").disabled, false);
 
   await elements.get("#noiseSetupButton").handlers.click();

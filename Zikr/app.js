@@ -1,13 +1,15 @@
 (function () {
   "use strict";
 
-  const APP_VERSION = "v36";
+  const APP_VERSION = "v44";
   const CONFIG = Object.freeze({
-    requiredExamples: 3,
+    requiredExamples: 2,
+    maximumStoredTemplates: 3,
     outputSampleRate: 16000,
     calibrationSilenceMs: 320,
     minimumExampleMs: 350,
-    maximumExampleMs: 3000,
+    maximumExampleMs: 8000,
+    calibrationFinishSilenceMs: 240,
     minimumThreshold: 0.012,
     noiseMultiplier: 2.8,
     meterBoost: 4.5,
@@ -20,10 +22,10 @@
     mfccFrameSize: 512,
     mfccHopSize: 160,
     dtwBandRatio: 0.28,
-    refractoryRatio: 0.58,
-    minimumNewVoicedRatio: 0.42,
-    minimumActiveMs: 220,
-    minimumContinuousVoiceMs: 110,
+    shortPhraseDurationMs: 900,
+    longPhraseDurationMs: 1600,
+    minimumActiveMs: 150,
+    minimumContinuousVoiceMs: 70,
     minimumActiveRatio: 0.22,
     maximumCrestFactor: 14,
     maximumSpectralFlatness: 0.58,
@@ -73,6 +75,9 @@
   const restartSetupButton = document.querySelector("#restartSetupButton");
   const setupProgress = document.querySelector("#setupProgress");
   const setupHint = document.querySelector("#setupHint");
+  const cadenceControl = document.querySelector("#cadenceControl");
+  const cadenceSlider = document.querySelector("#cadenceSlider");
+  const cadenceValue = document.querySelector("#cadenceValue");
   const statusBadge = document.querySelector("#statusBadge");
   const statusText = document.querySelector("#statusText");
   const heardText = document.querySelector("#heardText");
@@ -151,8 +156,11 @@
   let calibrationBuffers = [];
   let calibrationHoldActive = false;
   let calibrationHoldPointerId = null;
+  let calibrationReleasePending = false;
 
   let templates = [];
+  let cadenceTuning = null;
+  let cadenceAdjustment = 0;
   let expectedDurationSamples = 0;
   let minimumTemplateDurationSamples = 0;
   let maximumTemplateDurationSamples = 0;
@@ -174,7 +182,20 @@
       && template.fingerprint.length >= 12
       && Number.isFinite(template.durationSamples)
       && template.durationSamples > 0
-    )).slice(0, CONFIG.requiredExamples);
+    )).slice(0, CONFIG.maximumStoredTemplates);
+  }
+
+  function validCadenceTuning(value) {
+    return value
+      && Number.isFinite(value.refractoryMultiplier)
+      && Number.isFinite(value.freshVoiceMultiplier)
+      && Number.isFinite(value.thresholdMultiplier)
+      ? value
+      : null;
+  }
+
+  function voiceSetupComplete() {
+    return templates.length >= CONFIG.requiredExamples;
   }
 
   function supportsDesktopTapTools() {
@@ -196,6 +217,8 @@
       count,
       goal,
       templates,
+      cadenceTuning,
+      cadenceAdjustment,
     };
   }
 
@@ -263,6 +286,10 @@
     goal = Number.isFinite(profile.goal) && profile.goal > 0 ? Math.floor(profile.goal) : 0;
     goalCelebrated = goal > 0 && count >= goal;
     templates = validTemplates(profile.templates);
+    cadenceTuning = validCadenceTuning(profile.cadenceTuning);
+    cadenceAdjustment = Number.isFinite(profile.cadenceAdjustment)
+      ? Math.max(-2, Math.min(4, Math.round(profile.cadenceAdjustment)))
+      : 0;
     resetListeningState();
     if (templates.length >= CONFIG.requiredExamples) finalizeVoiceSetup();
 
@@ -274,9 +301,9 @@
     updateSetupUi();
     updateNoiseSetupUi();
     updateTapToolsUi();
-    heardText.textContent = templates.length >= CONFIG.requiredExamples
+    heardText.textContent = voiceSetupComplete()
       ? "Voice setup is ready. Press Start Listening."
-      : `Record three examples of "${activePhrase}" to begin.`;
+      : `Record two examples of "${activePhrase}" to begin.`;
     persistState();
   }
 
@@ -326,6 +353,7 @@
     document.documentElement.dataset.uiMode = tapMode ? "tap" : "audio";
     if (statusBadge) statusBadge.hidden = tapMode;
     if (tapToolsButton) tapToolsButton.hidden = !tapMode || !supportsDesktopTapTools();
+    if (!tapMode && tapToolsDialog && tapToolsDialog.open) tapToolsDialog.close();
     if (controlsEl) controlsEl.hidden = tapMode;
     if (goalPanelEl) goalPanelEl.hidden = tapMode;
     if (phrasePickerEl) phrasePickerEl.hidden = tapMode;
@@ -336,7 +364,7 @@
     if (privacyNoteEl) privacyNoteEl.hidden = tapMode;
     installAppButton.hidden = tapMode || isRunningAsInstalledApp();
     counterEl.setAttribute("aria-label", tapMode ? "Tap to add one repetition" : "Add one repetition");
-    startButton.disabled = tapMode || mode !== "idle";
+    startButton.disabled = tapMode || mode !== "idle" || !voiceSetupComplete();
     stopButton.disabled = true;
     if (tapCounterToggle) tapCounterToggle.checked = tapMode;
     if (tapMode) {
@@ -349,9 +377,9 @@
     } else {
       heardText.textContent = mode === "listening"
         ? "Listening for your calibrated phrase..."
-        : templates.length >= CONFIG.requiredExamples
+        : voiceSetupComplete()
           ? "Voice setup is ready. Press Start Listening."
-          : `Record three examples of "${activePhrase}" to begin.`;
+          : `Complete voice setup for "${activePhrase}" to begin.`;
       updateSetupUi();
       updateNoiseSetupUi();
       updateInstallButton();
@@ -480,20 +508,37 @@
   }
 
   function updateSetupUi() {
-    const completed = templates.length >= CONFIG.requiredExamples;
-    setupProgress.textContent = `${Math.min(templates.length, CONFIG.requiredExamples)} of ${CONFIG.requiredExamples}`;
+    const completed = voiceSetupComplete();
+    const recording = mode === "calibrating" || (mode === "starting" && calibrationHoldActive)
+      || calibrationReleasePending;
+    if (setupPanelEl) setupPanelEl.className = `setup-panel${recording ? " is-recording" : ""}`;
+    if (calibrateButton) calibrateButton.className = `button setup-button${recording ? " is-recording" : ""}`;
+    if (cadenceControl) cadenceControl.hidden = !completed;
+    if (cadenceSlider) cadenceSlider.value = String(cadenceAdjustment);
+    if (cadenceValue) cadenceValue.textContent = getCadenceLabel();
+    setupProgress.textContent = completed
+      ? "Ready"
+      : templates.length < CONFIG.requiredExamples
+        ? `${templates.length} of ${CONFIG.requiredExamples}`
+        : "Ready";
 
-    if (completed) {
+    if (recording) {
+      setupHint.textContent = calibrationReleasePending
+        ? "Finishing the recording..."
+        : "Recording now. Keep holding until you finish the full phrase.";
+      calibrateButton.textContent = calibrationReleasePending
+        ? "Finishing recording..."
+        : "Recording... release to save";
+      calibrateButton.disabled = false;
+    } else if (completed) {
       setupHint.textContent = "Voice setup saved on this device.";
       calibrateButton.textContent = "Hold to redo voice setup";
       calibrateButton.disabled = mode === "starting";
     } else {
-      if (templates.length === 1) {
-        setupHint.textContent = `Hold the button while saying "${activePhrase}" slowly, then release.`;
-      } else if (templates.length === 2) {
-        setupHint.textContent = `Hold the button while saying "${activePhrase}" at your fastest comfortable speed, then release.`;
-      } else {
+      if (templates.length === 0) {
         setupHint.textContent = `Hold the button while saying "${activePhrase}" once at a natural speed, then release.`;
+      } else if (templates.length === 1) {
+        setupHint.textContent = `Hold the button while saying "${activePhrase}" slowly, then release.`;
       }
       calibrateButton.textContent = `Hold to record example ${templates.length + 1}`;
       calibrateButton.disabled = mode === "starting";
@@ -502,7 +547,7 @@
       templates.length === 0 && mode !== "calibrating" && mode !== "starting"
     );
     restartSetupButton.disabled = mode === "noise-calibrating";
-    startButton.disabled = mode !== "idle";
+    startButton.disabled = mode !== "idle" || !voiceSetupComplete();
     stopButton.disabled = mode !== "listening";
     if (tapCounterModeEnabled) stopButton.disabled = true;
     updateNoiseSetupUi();
@@ -679,12 +724,21 @@
 
     const totalFrames = calibrationBuffers.reduce((total, buffer) => total + buffer.length, 0);
     const totalMs = framesToMs(totalFrames);
-    if (totalMs >= CONFIG.maximumExampleMs) finishCalibrationExample();
+    if (calibrationReleasePending && framesToMs(calibrationSilenceFrames) >= CONFIG.calibrationFinishSilenceMs) {
+      finishCalibrationExample();
+      return;
+    }
+    if (totalMs >= CONFIG.maximumExampleMs) {
+      if (framesToMs(calibrationSilenceFrames) >= CONFIG.calibrationFinishSilenceMs || !calibrationHoldActive) {
+        finishCalibrationExample();
+      }
+    }
   }
 
   function finishCalibrationExample() {
     calibrationHoldActive = false;
     calibrationHoldPointerId = null;
+    calibrationReleasePending = false;
     const trailingFrames = Math.min(calibrationSilenceFrames, calibrationBuffers.reduce((sum, item) => sum + item.length, 0));
     const merged = concatenateBuffers(calibrationBuffers);
     const trimmed = merged.slice(0, Math.max(0, merged.length - trailingFrames));
@@ -709,22 +763,20 @@
       return;
     }
 
-    templates.push({
-      fingerprint,
-      durationSamples: downsampled.length,
-      speechShape: analyzeSpeechShape(downsampled),
-    });
-    persistState();
-    mode = "idle";
-
-    if (templates.length >= CONFIG.requiredExamples) {
+    if (templates.length < CONFIG.requiredExamples) {
+      templates.push({
+        fingerprint,
+        durationSamples: downsampled.length,
+        speechShape: analyzeSpeechShape(downsampled),
+      });
       finalizeVoiceSetup();
-      heardText.textContent = "Voice setup complete. Press Start Listening.";
+      persistState();
+      mode = "idle";
+      heardText.textContent = templates.length === CONFIG.requiredExamples
+        ? "Voice setup complete. Press Start Listening."
+        : `Example ${templates.length} saved on this device.`;
       setStatus("waiting");
-      stopMicrophone();
-    } else {
-      heardText.textContent = `Example ${templates.length} saved on this device.`;
-      setStatus("waiting");
+      if (templates.length === CONFIG.requiredExamples) stopMicrophone();
     }
     updateSetupUi();
   }
@@ -741,7 +793,7 @@
       }
     }
     const baseline = median(positiveDistances);
-    matchThreshold = Math.min(1.25, Math.max(0.7, baseline * 1.25));
+    matchThreshold = Math.min(1.55, Math.max(0.7, baseline * 1.5));
   }
 
   function processListeningBlock(input, hasVoiceEnergy) {
@@ -882,11 +934,11 @@
 
     const now = listeningTimeMs;
     const candidateTime = now - (bestEndOffsetSamples / CONFIG.outputSampleRate) * 1000;
-    const matchedDurationMs = (bestDurationSamples / CONFIG.outputSampleRate) * 1000;
-    const outsideRefractory = candidateTime - lastDetectionTime >= matchedDurationMs * CONFIG.refractoryRatio;
-    const enoughNewVoice = voicedSamplesSinceDetection >= bestDurationSamples * CONFIG.minimumNewVoicedRatio;
+    const cadence = getDetectionCadence();
+    const outsideRefractory = candidateTime - lastDetectionTime >= cadence.refractoryMs;
+    const enoughNewVoice = voicedSamplesSinceDetection >= cadence.minimumNewVoiceSamples;
 
-    const candidateMatched = bestShape && bestDistance <= matchThreshold;
+    const candidateMatched = bestShape && bestDistance <= getLiveMatchThreshold();
     const confirmationWindowMs = CONFIG.analysisIntervalMs * 2.8;
 
     if (candidateMatched && outsideRefractory && enoughNewVoice) {
@@ -1072,10 +1124,75 @@
     calibrationSpeechFrames = 0;
     calibrationSilenceFrames = 0;
     calibrationBuffers = [];
+    calibrationReleasePending = false;
+  }
+
+  function getDetectionCadence() {
+    const templateDurationMs = (expectedDurationSamples / CONFIG.outputSampleRate) * 1000;
+    let refractoryRatio;
+    let freshVoiceRatio;
+    let minimumRefractoryMs;
+    let minimumFreshVoiceMs;
+
+    if (templateDurationMs <= CONFIG.shortPhraseDurationMs) {
+      refractoryRatio = 0.42;
+      freshVoiceRatio = 0.30;
+      minimumRefractoryMs = 170;
+      minimumFreshVoiceMs = 130;
+    } else if (templateDurationMs <= CONFIG.longPhraseDurationMs) {
+      refractoryRatio = 0.52;
+      freshVoiceRatio = 0.38;
+      minimumRefractoryMs = 280;
+      minimumFreshVoiceMs = 220;
+    } else {
+      refractoryRatio = 0.62;
+      freshVoiceRatio = 0.46;
+      minimumRefractoryMs = 500;
+      minimumFreshVoiceMs = 360;
+    }
+
+    const tuning = cadenceTuning || {
+      refractoryMultiplier: 1,
+      freshVoiceMultiplier: 1,
+      thresholdMultiplier: 1,
+    };
+    const manualMultiplier = cadenceAdjustment >= 4 ? 0.52
+      : cadenceAdjustment === 3 ? 0.62
+        : cadenceAdjustment === 2 ? 0.75
+          : cadenceAdjustment === 1 ? 0.88
+            : cadenceAdjustment === -1 ? 1.12
+              : cadenceAdjustment <= -2 ? 1.26
+                : 1;
+    const refractoryMs = Math.max(minimumRefractoryMs, templateDurationMs * refractoryRatio)
+      * tuning.refractoryMultiplier * manualMultiplier;
+    const freshVoiceMs = Math.max(minimumFreshVoiceMs, templateDurationMs * freshVoiceRatio)
+      * tuning.freshVoiceMultiplier * manualMultiplier;
+    return {
+      refractoryMs,
+      minimumNewVoiceSamples: Math.round((freshVoiceMs / 1000) * CONFIG.outputSampleRate),
+    };
+  }
+
+  function getLiveMatchThreshold() {
+    const manualThresholdMultiplier = 1 + cadenceAdjustment * 0.05;
+    return Math.min(1.7, matchThreshold * (cadenceTuning ? cadenceTuning.thresholdMultiplier : 1)
+      * manualThresholdMultiplier);
+  }
+
+  function getCadenceLabel() {
+    if (cadenceAdjustment >= 4) return "Maximum responsive";
+    if (cadenceAdjustment === 3) return "Very responsive";
+    if (cadenceAdjustment === 2) return "More responsive";
+    if (cadenceAdjustment === 1) return "Responsive";
+    if (cadenceAdjustment === -1) return "Guarded";
+    if (cadenceAdjustment <= -2) return "More guarded";
+    return "Balanced";
   }
 
   function resetVoiceSetup() {
     templates = [];
+    cadenceTuning = null;
+    cadenceAdjustment = 0;
     expectedDurationSamples = 0;
     minimumTemplateDurationSamples = 0;
     maximumTemplateDurationSamples = 0;
@@ -1305,7 +1422,7 @@
 
   async function beginCalibration() {
     calibrationHoldActive = true;
-    if (templates.length >= CONFIG.requiredExamples) {
+    if (voiceSetupComplete()) {
       resetVoiceSetup();
       persistState();
     }
@@ -1355,7 +1472,9 @@
       updateSetupUi();
       return;
     }
-    finishCalibrationExample();
+    calibrationReleasePending = true;
+    heardText.textContent = "Finishing this example...";
+    updateSetupUi();
   }
 
   calibrateButton.addEventListener("pointerdown", (event) => {
@@ -1397,6 +1516,15 @@
     event.preventDefault();
     endCalibrationHold();
   });
+
+  if (cadenceSlider) {
+    cadenceSlider.addEventListener("input", () => {
+      cadenceAdjustment = Math.max(-2, Math.min(4, Number.parseInt(cadenceSlider.value, 10) || 0));
+      if (cadenceValue) cadenceValue.textContent = getCadenceLabel();
+      persistState();
+      heardText.textContent = `Detection cadence set to ${getCadenceLabel().toLowerCase()}.`;
+    });
+  }
 
   restartSetupButton.addEventListener("click", () => {
     mode = "idle";
@@ -1458,7 +1586,7 @@
   });
 
   startButton.addEventListener("click", async () => {
-    if (templates.length < CONFIG.requiredExamples) {
+    if (!voiceSetupComplete()) {
       showSetupRequired();
       return;
     }
@@ -1492,7 +1620,7 @@
   });
 
   stopButton.addEventListener("click", () => {
-    if (templates.length < CONFIG.requiredExamples) {
+    if (!voiceSetupComplete()) {
       showSetupRequired();
       return;
     }
@@ -1525,7 +1653,7 @@
     persistState();
     heardText.textContent = mode === "listening"
       ? "Listening for your calibrated phrase..."
-      : templates.length >= CONFIG.requiredExamples
+      : voiceSetupComplete()
         ? "Voice setup is ready."
         : "Complete voice setup to begin.";
   });

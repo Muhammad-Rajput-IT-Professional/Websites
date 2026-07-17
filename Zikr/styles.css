@@ -213,6 +213,10 @@ html[data-ui-mode="tap"] .tap-tools-button {
   display: none;
 }
 
+html[data-ui-mode="audio"] .tap-tools-button {
+  display: none !important;
+}
+
 html[data-ui-mode="tap"] .status,
 html[data-ui-mode="tap"] .controls,
 html[data-ui-mode="tap"] .goal-panel,
@@ -548,6 +552,12 @@ html[data-ui-mode="tap"] .phrase-label {
   background: #f8faf8;
 }
 
+.setup-panel.is-recording {
+  border-color: #c73b35;
+  background: #fff1f0;
+  box-shadow: 0 0 0 3px rgba(199, 59, 53, 0.12);
+}
+
 .setup-heading {
   display: flex;
   align-items: center;
@@ -584,6 +594,12 @@ html[data-ui-mode="tap"] .phrase-label {
   -webkit-tap-highlight-color: transparent;
 }
 
+.setup-button.is-recording {
+  color: #fff;
+  background: #c73b35;
+  box-shadow: 0 0 0 3px rgba(199, 59, 53, 0.16);
+}
+
 .noise-setup-button {
   min-height: 2.9rem;
   color: #fff;
@@ -598,6 +614,41 @@ html[data-ui-mode="tap"] .phrase-label {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.55rem;
+}
+
+.cadence-control {
+  display: grid;
+  gap: 0.4rem;
+  padding-top: 0.15rem;
+}
+
+.cadence-heading,
+.cadence-scale {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cadence-heading label {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.cadence-heading output {
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.cadence-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.cadence-scale {
+  color: var(--muted);
+  font-size: 0.72rem;
 }
 
 .restart-setup-button {

@@ -19,7 +19,7 @@
           <div>
             <div class="title-row">
               <h1 id="app-title">Dhikr Counter</h1>
-              <span id="appVersion" class="app-version">v36</span>
+              <span id="appVersion" class="app-version">v44</span>
             </div>
           </div>
           <div class="topbar-actions">
@@ -83,12 +83,20 @@
         <section class="setup-panel" aria-labelledby="setupTitle">
           <div class="setup-heading">
             <h2 id="setupTitle">Voice setup</h2>
-            <span id="setupProgress">0 of 3</span>
+            <span id="setupProgress">0 of 2</span>
           </div>
-          <p id="setupHint">Record the phrase three times so this device can learn your pronunciation.</p>
+          <p id="setupHint">Record the phrase twice so this device can learn your pronunciation.</p>
           <div class="setup-actions">
             <button id="calibrateButton" class="button setup-button" type="button">Record example 1</button>
             <button id="restartSetupButton" class="button restart-setup-button" type="button" hidden>Restart setup</button>
+          </div>
+          <div id="cadenceControl" class="cadence-control" hidden>
+            <div class="cadence-heading">
+              <label for="cadenceSlider">Detection cadence</label>
+              <output id="cadenceValue" for="cadenceSlider">Balanced</output>
+            </div>
+            <input id="cadenceSlider" type="range" min="-2" max="4" step="1" value="0" aria-label="Detection cadence" />
+            <div class="cadence-scale" aria-hidden="true"><span>More guarded</span><span>More responsive</span></div>
           </div>
           <p id="heardText" class="heard-text" aria-live="polite">Complete voice setup to begin.</p>
         </section>
