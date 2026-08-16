@@ -19,7 +19,7 @@
         <span class="icon">🕌</span>
         <div>
           <h1>Rakat Tracker</h1>
-          <span class="version-tag">v4</span>
+          <span class="version-tag">v5</span>
         </div>
       </div>
       <div class="header-badges">
@@ -36,22 +36,9 @@
           <div class="stat-value main-stat" id="rakat-display">1</div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="stat-row">
-          <div class="stat-group">
-            <div class="stat-label">Sajdah (Current Rakat)</div>
-            <div class="stat-value sub-stat" id="sajdah-display">0 / 2</div>
-          </div>
-          <div class="stat-group">
-            <div class="stat-label">Total Sajdahs</div>
-            <div class="stat-value sub-stat" id="total-sajdah-display">0</div>
-          </div>
-        </div>
-
         <div class="motion-indicator-wrapper">
           <div class="motion-indicator" id="motion-indicator">
-            <span id="posture-text">Standing / Ruku</span>
+            <span id="posture-text">Standing / Upright</span>
           </div>
           <div class="pitch-meter">
             <div class="pitch-fill" id="pitch-fill" style="height: 10%;"></div>
@@ -72,19 +59,11 @@
         </div>
 
         <div class="setting-item toggle-item">
-          <span>Voice Announcements</span>
+          <span>Male Voice Announcement</span>
           <label class="switch">
             <input type="checkbox" id="audio-toggle" checked>
             <span class="slider round"></span>
           </label>
-        </div>
-
-        <div class="setting-item toggle-item">
-          <span>Announcement Timing</span>
-          <select id="announcement-mode">
-            <option value="standing" selected>On Standing Up (Rakat Complete)</option>
-            <option value="sajdah">On Each Sajdah (1, 2...)</option>
-          </select>
         </div>
       </section>
 

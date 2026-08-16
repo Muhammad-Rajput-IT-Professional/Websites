@@ -97,118 +97,82 @@ function releaseWakeLock() {
 }
 
 /**
- * Orientation Pocket Algorithm:
- * When phone is in front trouser pocket:
- * - STANDING: Phone is vertical (tilt angle relative to horizontal ground is 65° ~ 90°).
- * - SAJDAH: Thigh becomes horizontal (tilt angle relative to ground drops to 0° ~ 35°).
- *
- * We calculate true 3D tilt angle off horizontal plane using both Beta (front-back tilt) and Gamma (left-right tilt).
+ * Clean Rakat State Machine
+ * State 0: Standing / Upright (Initial)
+ * State 1: Down / Horizontal (Thigh bent for Ruku & Sajdah)
+ * State 2: Returning Upright -> Immediately announce next Rakat!
  */
+let isDown = false;
+let lastStateChangeTime = 0;
+const STATE_COOLDOWN_MS = 2500; // Prevent rapid flicker
+
 function handleOrientation(event) {
   if (!isTracking) return;
 
-  const beta = event.beta;   // Front-back tilt [-180, 180]
-  const gamma = event.gamma; // Left-right tilt [-90, 90]
-
+  const beta = event.beta; // Front-back tilt [-180, 180]
   if (beta === null || beta === undefined) return;
 
-  // Compute angle of the phone's long axis relative to vertical standing plane
-  // When standing upright: beta is ~80° - 90°, or ~ -80° - -90° (if placed upside down in pocket)
   const absBeta = Math.abs(beta);
-  const absGamma = Math.abs(gamma || 0);
+  
+  // Calculate tilt angle relative to ground (0° = horizontal, 90° = vertical standing)
+  let tiltAngle = absBeta;
+  if (absBeta > 90) tiltAngle = 180 - absBeta;
 
-  // Effective vertical tilt angle (90° = perfectly upright standing, 0° = completely flat horizontal in Sajdah)
-  // If phone is upright in pocket, absBeta measures tilt towards ground
-  let tiltFromVertical = 90 - absBeta;
-  if (absBeta > 90) tiltFromVertical = absBeta - 90; // Handing upside down in pocket
-
-  // Also factor gamma if phone rotated sideways in pocket
-  const effectiveSajdahTilt = Math.sqrt(tiltFromVertical * tiltFromVertical + (absGamma * 0.3) * (absGamma * 0.3));
-
-  // Update Raw Debug Display
-  document.getElementById('raw-pitch').textContent = `${Math.round(effectiveSajdahTilt)}° tilt`;
-  const fillPercentage = Math.min(100, Math.max(5, (effectiveSajdahTilt / 60) * 100));
+  // Debug meter
+  document.getElementById('raw-pitch').textContent = `${Math.round(tiltAngle)}° tilt`;
+  const fillPercentage = Math.min(100, Math.max(5, (tiltAngle / 90) * 100));
   document.getElementById('pitch-fill').style.height = `${fillPercentage}%`;
 
   const motionIndicator = document.getElementById('motion-indicator');
   const postureText = document.getElementById('posture-text');
   const sensorState = document.getElementById('sensor-state');
 
-  // THRESHOLDS:
-  // Sajdah trigger: effective tilt angle drops < 35° (thigh flat on ground/prostrate)
-  // Standing trigger: effective tilt angle rises > 55° (thigh vertical)
-  const SAJDAH_THRESHOLD = 35;
-  const STANDING_THRESHOLD = 55;
+  // THRESHOLDS FOR POCKET TILT:
+  // Down Position threshold: < 45° tilt (bent down for Ruku/Sajdah)
+  // Upright Standing threshold: > 70° tilt (standing straight)
+  const DOWN_THRESHOLD = 45;
+  const UPRIGHT_THRESHOLD = 70;
 
   const now = Date.now();
 
-  if (effectiveSajdahTilt <= SAJDAH_THRESHOLD) {
-    // Smartphone has entered Sajdah position
-    if (!isInSajdahPosition && (now - lastSajdahTime > SAJDAH_COOLDOWN_MS)) {
-      isInSajdahPosition = true;
-      lastSajdahTime = now;
-      
-      motionIndicator.classList.add('active-sajdah');
-      postureText.textContent = '🙇 SAJDAH DETECTED';
-      sensorState.textContent = 'In Sajdah';
+  if (tiltAngle <= DOWN_THRESHOLD) {
+    // User went down
+    if (!isDown && (now - lastStateChangeTime > STATE_COOLDOWN_MS)) {
+      isDown = true;
+      lastStateChangeTime = now;
 
-      onSajdahEntered();
+      motionIndicator.classList.add('active-sajdah');
+      postureText.textContent = '🙇 DOWN (BENT / SAJDAH)';
+      sensorState.textContent = 'Down';
     }
-  } else if (effectiveSajdahTilt >= STANDING_THRESHOLD) {
-    // Smartphone returned to Standing / Upright posture
-    if (isInSajdahPosition) {
-      isInSajdahPosition = false;
+  } else if (tiltAngle >= UPRIGHT_THRESHOLD) {
+    // User stood back UP!
+    if (isDown && (now - lastStateChangeTime > STATE_COOLDOWN_MS)) {
+      isDown = false;
+      lastStateChangeTime = now;
+
       motionIndicator.classList.remove('active-sajdah');
-      postureText.textContent = '🧍 STANDING UP';
+      postureText.textContent = '🧍 STANDING UPRIGHT';
       sensorState.textContent = 'Standing Upright';
 
-      onStandingUp();
+      onStoodUpForNextRakat();
     }
   }
 }
 
-// Triggered when phone tilts flat (Sajdah)
-function onSajdahEntered() {
-  sajdahInCurrentRakat++;
-  totalSajdahs++;
-
-  // Update UI
-  document.getElementById('sajdah-display').textContent = `${sajdahInCurrentRakat} / 2`;
-  document.getElementById('total-sajdah-display').textContent = totalSajdahs;
-
-  const announceMode = document.getElementById('announcement-mode').value;
-
-  if (announceMode === 'sajdah') {
-    if (sajdahInCurrentRakat === 1) {
-      speak("1");
-    } else if (sajdahInCurrentRakat === 2) {
-      speak("2");
-    }
-  }
-  // If mode is 'standing', stay completely quiet while sitting/doing Sajdah!
-}
-
-// Triggered ONLY when user stands back up fully upright
-function onStandingUp() {
-  const announceMode = document.getElementById('announcement-mode').value;
+// Called IMMEDIATELY as soon as leg reaches vertical standing posture
+function onStoodUpForNextRakat() {
   targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
 
-  if (sajdahInCurrentRakat >= 2) {
-    // 2 Sajdahs completed for this Rakat and now user stood up for next Rakat!
-    if (rakatCount < targetRakat) {
-      // Advance to Next Rakat first
-      rakatCount++;
-      sajdahInCurrentRakat = 0;
-      
-      document.getElementById('rakat-display').textContent = rakatCount;
-      document.getElementById('sajdah-display').textContent = `0 / 2`;
+  if (rakatCount < targetRakat) {
+    rakatCount++;
+    document.getElementById('rakat-display').textContent = rakatCount;
 
-      // Announce ONLY the next rakat number (e.g., "2", "3", "4") in a clear male voice while standing
-      speak(`${rakatCount}`);
-    } else {
-      speak("Done");
-      stopTracking();
-    }
+    // Immediately announce e.g. "Starting Rakat 2" in male voice as soon as you stand up!
+    speak(`Starting Rakat ${rakatCount}`);
+  } else {
+    speak("Prayer complete");
+    stopTracking();
   }
 }
 
@@ -262,15 +226,12 @@ function stopTracking() {
 
 function resetCounter() {
   rakatCount = 1;
-  sajdahInCurrentRakat = 0;
-  totalSajdahs = 0;
-  isInSajdahPosition = false;
+  isDown = false;
+  lastStateChangeTime = 0;
 
   document.getElementById('rakat-display').textContent = '1';
-  document.getElementById('sajdah-display').textContent = '0 / 2';
-  document.getElementById('total-sajdah-display').textContent = '0';
   document.getElementById('motion-indicator').classList.remove('active-sajdah');
-  document.getElementById('posture-text').textContent = 'Standing / Ruku';
+  document.getElementById('posture-text').textContent = 'Standing / Upright';
 
   if (isTracking) {
     speak("Counter reset");
