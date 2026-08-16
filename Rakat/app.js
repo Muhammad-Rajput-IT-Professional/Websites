@@ -160,6 +160,9 @@ async function startTracking() {
     return;
   }
 
+  const startBtn = document.getElementById('start-btn');
+
+  // Request Motion/Orientation permission on iOS if required
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
       const response = await DeviceOrientationEvent.requestPermission();
@@ -172,22 +175,22 @@ async function startTracking() {
     }
   }
 
-  window.addEventListener('deviceorientation', handleOrientation, true);
-  
   isTracking = true;
   isInSajdahPosition = false;
   sajdahInCurrentRakat = 0;
   lastSajdahTime = Date.now() + 4000; // 4-second Grace Period while putting phone in pocket
 
-  await requestWakeLock();
-
-  const startBtn = document.getElementById('start-btn');
+  // Immediately update UI states so button turns red instantly
   startBtn.classList.add('active');
   startBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop Tracking';
   
   document.getElementById('sensor-badge').textContent = 'Sensor Active';
   document.getElementById('sensor-badge').classList.replace('badge-off', 'badge-on');
 
+  window.addEventListener('deviceorientation', handleOrientation, true);
+
+  // Non-blocking wake lock request & speech alert
+  requestWakeLock().catch(e => console.log(e));
   speak("Tracking started. Place phone in pocket.");
 }
 
