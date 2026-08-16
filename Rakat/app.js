@@ -22,9 +22,19 @@ function initVoice() {
   if ('speechSynthesis' in window) {
     const loadVoices = () => {
       const voices = synth.getVoices();
-      speechVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Natural')) ||
-                    voices.find(v => v.lang.startsWith('en')) ||
-                    voices[0];
+      // Search specifically for male English voices (e.g. David, George, Guy, James, Male, etc.)
+      const maleVoice = voices.find(v => v.lang.startsWith('en') && (
+        v.name.toLowerCase().includes('male') ||
+        v.name.toLowerCase().includes('david') ||
+        v.name.toLowerCase().includes('george') ||
+        v.name.toLowerCase().includes('guy') ||
+        v.name.toLowerCase().includes('james') ||
+        v.name.toLowerCase().includes('ryan') ||
+        v.name.toLowerCase().includes('daniel') ||
+        v.name.toLowerCase().includes('alex')
+      ));
+
+      speechVoice = maleVoice || voices.find(v => v.lang.startsWith('en')) || voices[0];
     };
     loadVoices();
     if (speechSynthesis.onvoiceschanged !== undefined) {
@@ -41,7 +51,7 @@ function speak(text) {
   const utterance = new SpeechSynthesisUtterance(text);
   if (speechVoice) utterance.voice = speechVoice;
   utterance.rate = 0.95;
-  utterance.pitch = 1.0;
+  utterance.pitch = 0.85; // Deeper pitch for clear male voice tone
   utterance.volume = 1.0;
   synth.speak(utterance);
 }
@@ -170,19 +180,15 @@ function onSajdahEntered() {
 
   if (announceMode === 'sajdah') {
     if (sajdahInCurrentRakat === 1) {
-      speak("Sajdah 1");
-    } else if (sajdahInCurrentRakat === 2) {
-      speak("Sajdah 2");
-    }
-  } else {
-    // Mode: Standing announcement -> gentle confirmation beep/speech on Sajdah 1
-    if (sajdahInCurrentRakat === 1) {
       speak("1");
+    } else if (sajdahInCurrentRakat === 2) {
+      speak("2");
     }
   }
+  // If mode is 'standing', stay completely quiet while sitting/doing Sajdah!
 }
 
-// Triggered when standing back up upright after Sajdah
+// Triggered ONLY when user stands back up fully upright
 function onStandingUp() {
   const announceMode = document.getElementById('announcement-mode').value;
   targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
@@ -190,16 +196,17 @@ function onStandingUp() {
   if (sajdahInCurrentRakat >= 2) {
     // 2 Sajdahs completed for this Rakat and now user stood up for next Rakat!
     if (rakatCount < targetRakat) {
-      speak(`Rakat ${rakatCount} complete. Starting Rakat ${rakatCount + 1}`);
-
-      // Advance to Next Rakat
+      // Advance to Next Rakat first
       rakatCount++;
       sajdahInCurrentRakat = 0;
       
       document.getElementById('rakat-display').textContent = rakatCount;
       document.getElementById('sajdah-display').textContent = `0 / 2`;
+
+      // Announce ONLY the next rakat number (e.g., "2", "3", "4") in a clear male voice while standing
+      speak(`${rakatCount}`);
     } else {
-      speak(`Prayer complete. All ${rakatCount} Rakats finished.`);
+      speak("Done");
       stopTracking();
     }
   }
