@@ -95,13 +95,16 @@ function handleOrientation(event) {
   const postureText = document.getElementById('posture-text');
   const sensorState = document.getElementById('sensor-state');
 
-  const SAJDAH_ENTER_THRESHOLD = 38; 
-  const SAJDAH_EXIT_THRESHOLD = 60;
+  // THRESHOLDS:
+  // Sajdah flat position: pitch <= 35° (thigh horizontal to floor)
+  // Strict Standing Upright position: pitch >= 72° (thigh completely vertical)
+  const SAJDAH_ENTER_THRESHOLD = 35; 
+  const STANDING_THRESHOLD = 72;
 
   const now = Date.now();
 
   if (absPitch <= SAJDAH_ENTER_THRESHOLD) {
-    // Smartphone entered Sajdah position
+    // Smartphone entered Sajdah position flat on ground
     if (!isInSajdahPosition && (now - lastSajdahTime > SAJDAH_COOLDOWN_MS)) {
       isInSajdahPosition = true;
       lastSajdahTime = now;
@@ -112,17 +115,17 @@ function handleOrientation(event) {
       if (postureText) postureText.textContent = `🙇 SAJDAH (${sajdahInCurrentRakat}/2)`;
       if (sensorState) sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
     }
-  } else if (absPitch >= SAJDAH_EXIT_THRESHOLD) {
-    // Smartphone returned to vertical (Standing up upright)
+  } else if (absPitch >= STANDING_THRESHOLD) {
+    // Smartphone returned to true VERTICAL STANDING UPRIGHT (Legs fully straight)
     if (isInSajdahPosition) {
       isInSajdahPosition = false;
-      lastSajdahTime = now; // Update timestamp when rising up
+      lastSajdahTime = now;
 
       if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
       if (postureText) postureText.textContent = '🧍 STANDING UPRIGHT';
       if (sensorState) sensorState.textContent = 'Standing Upright';
 
-      // Check if 2 Sajdahs were completed AND user is now standing back up upright!
+      // CRITICAL FIX: Only trigger Rakat increment if 2 full Sajdahs were registered AND you have NOW STOOD ALL THE WAY UP!
       if (sajdahInCurrentRakat >= 2) {
         onStandingUpForNextRakat();
       }
