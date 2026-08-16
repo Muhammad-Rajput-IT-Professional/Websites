@@ -1,24 +1,5 @@
 /**
- * Rakat & Sajdah Pocket Detector Engine
- * Refactored for Android Screen-On WakeLock + Dual Orientation Detection (Gamma/Roll & Beta/Pitch)
- * + Standing Up Rakat Announcement Mode ("Rakat X Complete")
- */
-
-let isTracking = false;
-let rakatCount = 1;
-let sajdahInCurrentRakat = 0;
-let totalSajdahs = 0;
-let targetRakat = 4;
-
-let isInSajdahPosition = false;
-let lastSajdahTime = 0;
-/**
- * Rakat Tracker Engine (v6)
- * - Restores reliable v1/v2 beta pitch sensor algorithm
- * - Counts 2 Sajdahs per Rakat
- * - Stays quiet during Sajdahs
- * - Speaks "Starting Rakat X" IMMEDIATELY when standing up for the next Rakat
- * - Includes Voice Selection Dropdown & pitch adjustment
+ * Rakat Tracker Engine (v10 - Clean Fixed)
  */
 
 let isTracking = false;
@@ -31,36 +12,44 @@ let lastSajdahTime = 0;
 const SAJDAH_COOLDOWN_MS = 2500;
 
 // Speech Synth setup - Standard System Voice Engine
-const synth = window.speechSynthesis;
-
 function speak(text) {
-  const audioEnabled = document.getElementById('audio-toggle').checked;
-  if (!audioEnabled || !('speechSynthesis' in window)) return;
+  try {
+    const audioToggle = document.getElementById('audio-toggle');
+    const audioEnabled = audioToggle ? audioToggle.checked : true;
+    if (!audioEnabled || !('speechSynthesis' in window)) return;
 
-  synth.cancel(); // Clear queued utterances
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1.0;
-  utterance.pitch = 1.0;
-  utterance.volume = 1.0;
-  synth.speak(utterance);
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.error("Speech synthesis error:", err);
+  }
 }
 
-// Keep Screen ON via WakeLock API (Crucial for Android Sensors)
-const silentAudio = document.getElementById('silent-audio');
+// Keep Screen ON via WakeLock API
 let wakeLock = null;
 
 async function requestWakeLock() {
-  try {
-    if (silentAudio) silentAudio.play();
-  } catch (err) {
-    console.log("Audio play error", err);
+  const silentAudio = document.getElementById('silent-audio');
+  if (silentAudio) {
+    try {
+      silentAudio.play();
+    } catch (err) {
+      console.log("Silent audio play error:", err);
+    }
   }
 
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      document.getElementById('wake-lock-badge').textContent = 'Screen Kept Awake';
-      document.getElementById('wake-lock-badge').classList.replace('badge-off', 'badge-on');
+      const badge = document.getElementById('wake-lock-badge');
+      if (badge) {
+        badge.textContent = 'Screen Kept Awake';
+        badge.className = 'badge badge-on';
+      }
     } catch (err) {
       console.log('WakeLock error:', err);
     }
@@ -68,12 +57,16 @@ async function requestWakeLock() {
 }
 
 function releaseWakeLock() {
+  const silentAudio = document.getElementById('silent-audio');
   if (silentAudio) silentAudio.pause();
   if (wakeLock) {
     wakeLock.release().then(() => { wakeLock = null; });
   }
-  document.getElementById('wake-lock-badge').textContent = 'Screen Lock Off';
-  document.getElementById('wake-lock-badge').classList.replace('badge-on', 'badge-off');
+  const badge = document.getElementById('wake-lock-badge');
+  if (badge) {
+    badge.textContent = 'Screen Lock Off';
+    badge.className = 'badge badge-off';
+  }
 }
 
 /**
@@ -90,17 +83,18 @@ function handleOrientation(event) {
   const absPitch = Math.abs(pitch);
 
   // Update Raw Debug Display
-  document.getElementById('raw-pitch').textContent = `${Math.round(absPitch)}° pitch`;
-  const fillPercentage = Math.min(100, Math.max(5, (absPitch / 90) * 100));
-  document.getElementById('pitch-fill').style.height = `${fillPercentage}%`;
+  const rawPitchEl = document.getElementById('raw-pitch');
+  const pitchFillEl = document.getElementById('pitch-fill');
+  if (rawPitchEl) rawPitchEl.textContent = `${Math.round(absPitch)}° pitch`;
+  if (pitchFillEl) {
+    const fillPercentage = Math.min(100, Math.max(5, (absPitch / 90) * 100));
+    pitchFillEl.style.height = `${fillPercentage}%`;
+  }
 
   const motionIndicator = document.getElementById('motion-indicator');
   const postureText = document.getElementById('posture-text');
   const sensorState = document.getElementById('sensor-state');
 
-  // THRESHOLDS:
-  // Sajdah trigger: Pitch drops <= 38°
-  // Standing trigger: Pitch rises >= 60°
   const SAJDAH_ENTER_THRESHOLD = 38; 
   const SAJDAH_EXIT_THRESHOLD = 60;
 
@@ -114,18 +108,18 @@ function handleOrientation(event) {
 
       sajdahInCurrentRakat++;
 
-      motionIndicator.classList.add('active-sajdah');
-      postureText.textContent = `🙇 SAJDAH (${sajdahInCurrentRakat}/2)`;
-      sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
+      if (motionIndicator) motionIndicator.classList.add('active-sajdah');
+      if (postureText) postureText.textContent = `🙇 SAJDAH (${sajdahInCurrentRakat}/2)`;
+      if (sensorState) sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
     }
   } else if (absPitch >= SAJDAH_EXIT_THRESHOLD) {
     // Smartphone returned to vertical (Standing up)
     if (isInSajdahPosition) {
       isInSajdahPosition = false;
 
-      motionIndicator.classList.remove('active-sajdah');
-      postureText.textContent = '🧍 STANDING UPRIGHT';
-      sensorState.textContent = 'Standing Upright';
+      if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
+      if (postureText) postureText.textContent = '🧍 STANDING UPRIGHT';
+      if (sensorState) sensorState.textContent = 'Standing Upright';
 
       // Check if we just completed 2 Sajdahs and are now standing up!
       if (sajdahInCurrentRakat >= 2) {
@@ -137,15 +131,16 @@ function handleOrientation(event) {
 
 // Called IMMEDIATELY when standing up after completing 2 Sajdahs
 function onStandingUpForNextRakat() {
-  targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
+  const targetSelect = document.getElementById('target-rakat');
+  targetRakat = targetSelect ? parseInt(targetSelect.value, 10) : 4;
 
   if (rakatCount < targetRakat) {
     rakatCount++;
     sajdahInCurrentRakat = 0;
 
-    document.getElementById('rakat-display').textContent = rakatCount;
+    const rakatDisplay = document.getElementById('rakat-display');
+    if (rakatDisplay) rakatDisplay.textContent = rakatCount;
 
-    // Immediately announce e.g. "Starting Rakat 2" in male voice as soon as you stand up!
     speak(`Starting Rakat ${rakatCount}`);
   } else {
     speak("Prayer complete");
@@ -154,42 +149,49 @@ function onStandingUpForNextRakat() {
 }
 
 // Sensor Permission & Tracking Handler
-async function startTracking() {
+function startTracking() {
   if (isTracking) {
     stopTracking();
     return;
   }
 
-  const startBtn = document.getElementById('start-btn');
-
   // Request Motion/Orientation permission on iOS if required
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try {
-      const response = await DeviceOrientationEvent.requestPermission();
-      if (response !== 'granted') {
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === 'granted') {
+        enableTrackingEngine();
+      } else {
         alert('Permission to access motion sensors was denied.');
-        return;
       }
-    } catch (error) {
+    }).catch(error => {
       console.error('DeviceOrientation permission error:', error);
-    }
+      enableTrackingEngine();
+    });
+  } else {
+    enableTrackingEngine();
   }
+}
 
+function enableTrackingEngine() {
   isTracking = true;
   isInSajdahPosition = false;
   sajdahInCurrentRakat = 0;
   lastSajdahTime = Date.now() + 4000; // 4-second Grace Period while putting phone in pocket
 
-  // Immediately update UI states so button turns red instantly
-  startBtn.classList.add('active');
-  startBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop Tracking';
+  const startBtn = document.getElementById('start-btn');
+  if (startBtn) {
+    startBtn.classList.add('active');
+    startBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop Tracking';
+  }
   
-  document.getElementById('sensor-badge').textContent = 'Sensor Active';
-  document.getElementById('sensor-badge').classList.replace('badge-off', 'badge-on');
+  const badge = document.getElementById('sensor-badge');
+  if (badge) {
+    badge.textContent = 'Sensor Active';
+    badge.className = 'badge badge-on';
+  }
 
   window.addEventListener('deviceorientation', handleOrientation, true);
 
-  // Non-blocking wake lock request & speech alert
   requestWakeLock().catch(e => console.log(e));
   speak("Tracking started. Place phone in pocket.");
 }
@@ -200,11 +202,16 @@ function stopTracking() {
   releaseWakeLock();
 
   const startBtn = document.getElementById('start-btn');
-  startBtn.classList.remove('active');
-  startBtn.innerHTML = '<span class="btn-icon">▶</span> Start Tracking';
+  if (startBtn) {
+    startBtn.classList.remove('active');
+    startBtn.innerHTML = '<span class="btn-icon">▶</span> Start Tracking';
+  }
 
-  document.getElementById('sensor-badge').textContent = 'Sensor Standby';
-  document.getElementById('sensor-badge').classList.replace('badge-on', 'badge-off');
+  const badge = document.getElementById('sensor-badge');
+  if (badge) {
+    badge.textContent = 'Sensor Standby';
+    badge.className = 'badge badge-off';
+  }
 }
 
 function resetCounter() {
@@ -212,9 +219,14 @@ function resetCounter() {
   sajdahInCurrentRakat = 0;
   isInSajdahPosition = false;
 
-  document.getElementById('rakat-display').textContent = '1';
-  document.getElementById('motion-indicator').classList.remove('active-sajdah');
-  document.getElementById('posture-text').textContent = 'Standing / Upright';
+  const rakatDisplay = document.getElementById('rakat-display');
+  if (rakatDisplay) rakatDisplay.textContent = '1';
+
+  const motionIndicator = document.getElementById('motion-indicator');
+  if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
+
+  const postureText = document.getElementById('posture-text');
+  if (postureText) postureText.textContent = 'Standing / Upright';
 
   if (isTracking) {
     speak("Counter reset");
@@ -223,10 +235,15 @@ function resetCounter() {
 
 // Initializer
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('start-btn').addEventListener('click', startTracking);
-  document.getElementById('reset-btn').addEventListener('click', resetCounter);
+  const startBtn = document.getElementById('start-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const targetRakatSelect = document.getElementById('target-rakat');
 
-  document.getElementById('target-rakat').addEventListener('change', (e) => {
-    targetRakat = parseInt(e.target.value, 10);
-  });
+  if (startBtn) startBtn.addEventListener('click', startTracking);
+  if (resetBtn) resetBtn.addEventListener('click', resetCounter);
+  if (targetRakatSelect) {
+    targetRakatSelect.addEventListener('change', (e) => {
+      targetRakat = parseInt(e.target.value, 10);
+    });
+  }
 });
