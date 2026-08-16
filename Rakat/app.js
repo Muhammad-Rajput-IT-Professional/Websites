@@ -1,6 +1,7 @@
 /**
  * Rakat & Sajdah Pocket Detector Engine
- * Uses DeviceOrientation (pitch tilt) + Web Speech API + WakeLock & Audio Heartbeat
+ * Refactored for Android Screen-On WakeLock + Dual Orientation Detection (Gamma/Roll & Beta/Pitch)
+ * + Standing Up Rakat Announcement Mode ("Rakat X Complete")
  */
 
 let isTracking = false;
@@ -11,7 +12,7 @@ let targetRakat = 4;
 
 let isInSajdahPosition = false;
 let lastSajdahTime = 0;
-const SAJDAH_COOLDOWN_MS = 2500; // Minimum delay between sajdahs to prevent false double counts
+const SAJDAH_COOLDOWN_MS = 3000; // Minimum delay between sajdahs to avoid false double hits
 
 // Speech Synth setup
 const synth = window.speechSynthesis;
@@ -21,7 +22,6 @@ function initVoice() {
   if ('speechSynthesis' in window) {
     const loadVoices = () => {
       const voices = synth.getVoices();
-      // Select clear English voice if available
       speechVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Natural')) ||
                     voices.find(v => v.lang.startsWith('en')) ||
                     voices[0];
@@ -37,36 +37,40 @@ function speak(text) {
   const audioEnabled = document.getElementById('audio-toggle').checked;
   if (!audioEnabled || !('speechSynthesis' in window)) return;
 
-  synth.cancel(); // Cancel any ongoing queue
+  synth.cancel(); // Clear queued utterances
   const utterance = new SpeechSynthesisUtterance(text);
   if (speechVoice) utterance.voice = speechVoice;
-  utterance.rate = 1.0;
+  utterance.rate = 0.95;
   utterance.pitch = 1.0;
   utterance.volume = 1.0;
   synth.speak(utterance);
 }
 
-// Keep-Alive audio playback for mobile screen off execution
+// Keep Screen ON via WakeLock API (Crucial for Android Sensors)
 const silentAudio = document.getElementById('silent-audio');
 let wakeLock = null;
 
 async function requestWakeLock() {
-  const wakeLockToggle = document.getElementById('wakelock-toggle').checked;
-  if (!wakeLockToggle) return;
-
-  // 1. Play silent background audio so mobile browsers keep thread active when locked
+  // 1. Play silent loop audio to keep audio session alive
   try {
-    silentAudio.play();
+    if (silentAudio) silentAudio.play();
   } catch (err) {
-    console.log("Audio play prevented", err);
+    console.log("Audio play error", err);
   }
 
-  // 2. Request official Screen WakeLock API if available
+  // 2. Request official Screen WakeLock API to keep screen awake (prevents Android sensor freeze)
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      document.getElementById('wake-lock-badge').textContent = 'Background Active';
+      document.getElementById('wake-lock-badge').textContent = 'Screen Kept Awake';
       document.getElementById('wake-lock-badge').classList.replace('badge-off', 'badge-on');
+      
+      wakeLock.addEventListener('release', () => {
+        if (isTracking) {
+          // Re-request if released unexpectedly
+          requestWakeLock();
+        }
+      });
     } catch (err) {
       console.log('WakeLock error:', err);
     }
@@ -78,59 +82,83 @@ function releaseWakeLock() {
   if (wakeLock) {
     wakeLock.release().then(() => { wakeLock = null; });
   }
-  document.getElementById('wake-lock-badge').textContent = 'Background Off';
+  document.getElementById('wake-lock-badge').textContent = 'Screen Lock Off';
   document.getElementById('wake-lock-badge').classList.replace('badge-on', 'badge-off');
 }
 
-// Orientation & Pocket Motion Detection
-// In front pocket:
-// - Vertical Standing / Ruku: Beta pitch is ~70° to 90° (or -70° to -90° depending on orientation)
-// - Sajdah (horizontal/prostrate): Thigh tilts horizontal, Beta pitch drops near 0° to 30°
+/**
+ * Orientation Pocket Algorithm:
+ * When phone is in front trouser pocket:
+ * - STANDING: Phone is vertical (tilt angle relative to horizontal ground is 65° ~ 90°).
+ * - SAJDAH: Thigh becomes horizontal (tilt angle relative to ground drops to 0° ~ 35°).
+ *
+ * We calculate true 3D tilt angle off horizontal plane using both Beta (front-back tilt) and Gamma (left-right tilt).
+ */
 function handleOrientation(event) {
   if (!isTracking) return;
 
-  let pitch = event.beta; // Tilt front-to-back [-180, 180]
-  if (pitch === null || pitch === undefined) return;
+  const beta = event.beta;   // Front-back tilt [-180, 180]
+  const gamma = event.gamma; // Left-right tilt [-90, 90]
 
-  const absPitch = Math.abs(pitch);
+  if (beta === null || beta === undefined) return;
+
+  // Compute angle of the phone's long axis relative to vertical standing plane
+  // When standing upright: beta is ~80° - 90°, or ~ -80° - -90° (if placed upside down in pocket)
+  const absBeta = Math.abs(beta);
+  const absGamma = Math.abs(gamma || 0);
+
+  // Effective vertical tilt angle (90° = perfectly upright standing, 0° = completely flat horizontal in Sajdah)
+  // If phone is upright in pocket, absBeta measures tilt towards ground
+  let tiltFromVertical = 90 - absBeta;
+  if (absBeta > 90) tiltFromVertical = absBeta - 90; // Handing upside down in pocket
+
+  // Also factor gamma if phone rotated sideways in pocket
+  const effectiveSajdahTilt = Math.sqrt(tiltFromVertical * tiltFromVertical + (absGamma * 0.3) * (absGamma * 0.3));
 
   // Update Raw Debug Display
-  document.getElementById('raw-pitch').textContent = `${Math.round(absPitch)}°`;
-  const fillPercentage = Math.min(100, Math.max(5, (absPitch / 90) * 100));
+  document.getElementById('raw-pitch').textContent = `${Math.round(effectiveSajdahTilt)}° tilt`;
+  const fillPercentage = Math.min(100, Math.max(5, (effectiveSajdahTilt / 60) * 100));
   document.getElementById('pitch-fill').style.height = `${fillPercentage}%`;
 
   const motionIndicator = document.getElementById('motion-indicator');
   const postureText = document.getElementById('posture-text');
+  const sensorState = document.getElementById('sensor-state');
 
-  // Sajdah Detection Threshold:
-  // Standing/Sitting: Phone vertical (pitch ~ 65° - 90°)
-  // Going into Sajdah: Thigh tilts forward horizontal (pitch < 38°)
-  const SAJDAH_ENTER_THRESHOLD = 38; 
-  const SAJDAH_EXIT_THRESHOLD = 60;
+  // THRESHOLDS:
+  // Sajdah trigger: effective tilt angle drops < 35° (thigh flat on ground/prostrate)
+  // Standing trigger: effective tilt angle rises > 55° (thigh vertical)
+  const SAJDAH_THRESHOLD = 35;
+  const STANDING_THRESHOLD = 55;
 
   const now = Date.now();
 
-  if (absPitch <= SAJDAH_ENTER_THRESHOLD) {
+  if (effectiveSajdahTilt <= SAJDAH_THRESHOLD) {
     // Smartphone has entered Sajdah position
     if (!isInSajdahPosition && (now - lastSajdahTime > SAJDAH_COOLDOWN_MS)) {
       isInSajdahPosition = true;
       lastSajdahTime = now;
+      
       motionIndicator.classList.add('active-sajdah');
       postureText.textContent = '🙇 SAJDAH DETECTED';
+      sensorState.textContent = 'In Sajdah';
 
-      onSajdahDetected();
+      onSajdahEntered();
     }
-  } else if (absPitch >= SAJDAH_EXIT_THRESHOLD) {
-    // Smartphone returned to vertical (Sitting after Sajdah or Standing)
+  } else if (effectiveSajdahTilt >= STANDING_THRESHOLD) {
+    // Smartphone returned to Standing / Upright posture
     if (isInSajdahPosition) {
       isInSajdahPosition = false;
       motionIndicator.classList.remove('active-sajdah');
-      postureText.textContent = '🧍 Standing / Sitting';
+      postureText.textContent = '🧍 STANDING UP';
+      sensorState.textContent = 'Standing Upright';
+
+      onStandingUp();
     }
   }
 }
 
-function onSajdahDetected() {
+// Triggered when phone tilts flat (Sajdah)
+function onSajdahEntered() {
   sajdahInCurrentRakat++;
   totalSajdahs++;
 
@@ -138,37 +166,53 @@ function onSajdahDetected() {
   document.getElementById('sajdah-display').textContent = `${sajdahInCurrentRakat} / 2`;
   document.getElementById('total-sajdah-display').textContent = totalSajdahs;
 
-  if (sajdahInCurrentRakat === 1) {
-    // First Sajdah of current Rakat -> Speak "1"
-    speak("1");
-  } else if (sajdahInCurrentRakat === 2) {
-    // Second Sajdah of current Rakat -> Speak "2"
-    targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
-    
+  const announceMode = document.getElementById('announcement-mode').value;
+
+  if (announceMode === 'sajdah') {
+    if (sajdahInCurrentRakat === 1) {
+      speak("Sajdah 1");
+    } else if (sajdahInCurrentRakat === 2) {
+      speak("Sajdah 2");
+    }
+  } else {
+    // Mode: Standing announcement -> gentle confirmation beep/speech on Sajdah 1
+    if (sajdahInCurrentRakat === 1) {
+      speak("1");
+    }
+  }
+}
+
+// Triggered when standing back up upright after Sajdah
+function onStandingUp() {
+  const announceMode = document.getElementById('announcement-mode').value;
+  targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
+
+  if (sajdahInCurrentRakat >= 2) {
+    // 2 Sajdahs completed for this Rakat and now user stood up for next Rakat!
     if (rakatCount < targetRakat) {
-      speak(`2. Rakat ${rakatCount} complete.`);
-      // Prepare for next Rakat
-      setTimeout(() => {
-        rakatCount++;
-        sajdahInCurrentRakat = 0;
-        document.getElementById('rakat-display').textContent = rakatCount;
-        document.getElementById('sajdah-display').textContent = `0 / 2`;
-      }, 1500);
+      speak(`Rakat ${rakatCount} complete. Starting Rakat ${rakatCount + 1}`);
+
+      // Advance to Next Rakat
+      rakatCount++;
+      sajdahInCurrentRakat = 0;
+      
+      document.getElementById('rakat-display').textContent = rakatCount;
+      document.getElementById('sajdah-display').textContent = `0 / 2`;
     } else {
-      speak(`2. Prayer finished. ${rakatCount} Rakats completed.`);
+      speak(`Prayer complete. All ${rakatCount} Rakats finished.`);
       stopTracking();
     }
   }
 }
 
-// Sensor Permission Handler (Required for iOS 13+)
+// Sensor Permission & Tracking Handler
 async function startTracking() {
   if (isTracking) {
     stopTracking();
     return;
   }
 
-  // Request DeviceOrientation permission on iOS
+  // Request Motion/Orientation permission on iOS if required
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
       const response = await DeviceOrientationEvent.requestPermission();
@@ -193,7 +237,7 @@ async function startTracking() {
   document.getElementById('sensor-badge').textContent = 'Sensor Active';
   document.getElementById('sensor-badge').classList.replace('badge-off', 'badge-on');
 
-  speak("Tracking started. Place phone in pocket.");
+  speak("Tracking started. Put phone in pocket.");
 }
 
 function stopTracking() {
@@ -213,6 +257,7 @@ function resetCounter() {
   rakatCount = 1;
   sajdahInCurrentRakat = 0;
   totalSajdahs = 0;
+  isInSajdahPosition = false;
 
   document.getElementById('rakat-display').textContent = '1';
   document.getElementById('sajdah-display').textContent = '0 / 2';
@@ -225,7 +270,7 @@ function resetCounter() {
   }
 }
 
-// Event Listeners
+// Initializer
 document.addEventListener('DOMContentLoaded', () => {
   initVoice();
 

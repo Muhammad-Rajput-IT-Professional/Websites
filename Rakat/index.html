@@ -20,7 +20,7 @@
         <h1>Rakat Tracker</h1>
       </div>
       <div class="header-badges">
-        <span id="wake-lock-badge" class="badge badge-off">Background Off</span>
+        <span id="wake-lock-badge" class="badge badge-off">Screen Lock Off</span>
         <span id="sensor-badge" class="badge badge-off">Sensor Standby</span>
       </div>
     </header>
@@ -64,12 +64,12 @@
             <option value="2">2 (Fajr / Sunnah)</option>
             <option value="3">3 (Maghrib / Witr)</option>
             <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
-            <option value="99">Unlimited / Custom</option>
+            <option value="99">Unlimited</option>
           </select>
         </div>
 
         <div class="setting-item toggle-item">
-          <span>Voice Announcement</span>
+          <span>Voice Announcements</span>
           <label class="switch">
             <input type="checkbox" id="audio-toggle" checked>
             <span class="slider round"></span>
@@ -77,11 +77,11 @@
         </div>
 
         <div class="setting-item toggle-item">
-          <span>Screen Off / Background Lock</span>
-          <label class="switch">
-            <input type="checkbox" id="wakelock-toggle" checked>
-            <span class="slider round"></span>
-          </label>
+          <span>Announcement Timing</span>
+          <select id="announcement-mode">
+            <option value="standing" selected>On Standing Up (Rakat Complete)</option>
+            <option value="sajdah">On Each Sajdah (1, 2...)</option>
+          </select>
         </div>
       </section>
 
@@ -95,25 +95,24 @@
         </button>
       </div>
 
-      <!-- Audio & Motion Debug / Pocket Guidance -->
-      <details class="guidance-card">
-        <summary>💡 Pocket Placement & Calibration Tips</summary>
+      <!-- Pocket Guidance -->
+      <details class="guidance-card" open>
+        <summary>💡 Pocket Placement & Sensor Tips</summary>
         <div class="guidance-content">
           <ul>
-            <li>Place phone vertically in front pocket screen facing leg or facing outward.</li>
-            <li>When going down for **Sajdah**, your thigh tilts forward horizontal to the floor, triggering the count.</li>
-            <li>Voice will softly announce: *"Sajdah 1"*, *"Sajdah 2 - Rakat 1 Complete"*, etc.</li>
-            <li>Keep silent mode off or volume turned up to hear voice alerts clearly from inside pocket.</li>
+            <li><strong>Pocket Placement:</strong> Place phone vertically in front pocket with top of phone pointing UP or DOWN.</li>
+            <li><strong>Screen-On Screen Dimming:</strong> Android browsers turn off sensor hardware when the screen is locked/off. The app automatically keeps the screen ON and dims it to 0% black so it won't drain battery or register accidental pocket touches.</li>
+            <li><strong>Detection Logic:</strong> When you go down to Sajdah, your thigh tilts horizontal. When you stand back up for Rakat 2, it announces: <em>"Rakat 1 Complete. Now starting Rakat 2"</em>.</li>
           </ul>
           <div class="raw-data">
-            <div>Pitch Angle: <strong id="raw-pitch">0°</strong></div>
-            <div>Threshold Sajdah: <strong>> 40° tilt</strong></div>
+            <div>Live Tilt Angle: <strong id="raw-pitch">0°</strong></div>
+            <div>Status: <strong id="sensor-state">Waiting...</strong></div>
           </div>
         </div>
       </details>
     </main>
 
-    <!-- Invisible Audio element for keeping iOS/Android web app active during sleep -->
+    <!-- Audio Beep Engine & Silent Keep-Alive -->
     <audio id="silent-audio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="></audio>
   </div>
 
