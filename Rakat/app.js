@@ -222,6 +222,10 @@ async function startTracking() {
   window.addEventListener('deviceorientation', handleOrientation, true);
   
   isTracking = true;
+  isInSajdahPosition = false;
+  sajdahInCurrentRakat = 0;
+  lastSajdahTime = Date.now() + 4000; // 4-second Grace Period while putting phone in pocket
+
   await requestWakeLock();
 
   const startBtn = document.getElementById('start-btn');
@@ -231,7 +235,7 @@ async function startTracking() {
   document.getElementById('sensor-badge').textContent = 'Sensor Active';
   document.getElementById('sensor-badge').classList.replace('badge-off', 'badge-on');
 
-  speak("Tracking started");
+  speak("Tracking started. Place phone in pocket.");
 }
 
 function stopTracking() {
