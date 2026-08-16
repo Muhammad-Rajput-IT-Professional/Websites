@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Rakat & Sajdah Counter</title>
+  <meta name="description" content="Hands-free prayer (Salah) Sajdah and Rakat tracker using phone orientation sensor and voice announcements. Works in pocket.">
+  <meta name="theme-color" content="#0d9488">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="icon">🕌</span>
+        <h1>Rakat Tracker</h1>
+      </div>
+      <div class="header-badges">
+        <span id="wake-lock-badge" class="badge badge-off">Background Off</span>
+        <span id="sensor-badge" class="badge badge-off">Sensor Standby</span>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Big Display Card -->
+      <div class="counter-card">
+        <div class="stat-group">
+          <div class="stat-label">Current Rakat</div>
+          <div class="stat-value main-stat" id="rakat-display">1</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="stat-row">
+          <div class="stat-group">
+            <div class="stat-label">Sajdah (Current Rakat)</div>
+            <div class="stat-value sub-stat" id="sajdah-display">0 / 2</div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-label">Total Sajdahs</div>
+            <div class="stat-value sub-stat" id="total-sajdah-display">0</div>
+          </div>
+        </div>
+
+        <div class="motion-indicator-wrapper">
+          <div class="motion-indicator" id="motion-indicator">
+            <span id="posture-text">Standing / Ruku</span>
+          </div>
+          <div class="pitch-meter">
+            <div class="pitch-fill" id="pitch-fill" style="height: 10%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings / Configuration -->
+      <section class="controls-section">
+        <div class="setting-item">
+          <label for="target-rakat">Target Rakats:</label>
+          <select id="target-rakat">
+            <option value="2">2 (Fajr / Sunnah)</option>
+            <option value="3">3 (Maghrib / Witr)</option>
+            <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
+            <option value="99">Unlimited / Custom</option>
+          </select>
+        </div>
+
+        <div class="setting-item toggle-item">
+          <span>Voice Announcement</span>
+          <label class="switch">
+            <input type="checkbox" id="audio-toggle" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <div class="setting-item toggle-item">
+          <span>Screen Off / Background Lock</span>
+          <label class="switch">
+            <input type="checkbox" id="wakelock-toggle" checked>
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button id="start-btn" class="btn btn-primary btn-large">
+          <span class="btn-icon">▶</span> Start Tracking
+        </button>
+        <button id="reset-btn" class="btn btn-secondary">
+          Reset Counter
+        </button>
+      </div>
+
+      <!-- Audio & Motion Debug / Pocket Guidance -->
+      <details class="guidance-card">
+        <summary>💡 Pocket Placement & Calibration Tips</summary>
+        <div class="guidance-content">
+          <ul>
+            <li>Place phone vertically in front pocket screen facing leg or facing outward.</li>
+            <li>When going down for **Sajdah**, your thigh tilts forward horizontal to the floor, triggering the count.</li>
+            <li>Voice will softly announce: *"Sajdah 1"*, *"Sajdah 2 - Rakat 1 Complete"*, etc.</li>
+            <li>Keep silent mode off or volume turned up to hear voice alerts clearly from inside pocket.</li>
+          </ul>
+          <div class="raw-data">
+            <div>Pitch Angle: <strong id="raw-pitch">0°</strong></div>
+            <div>Threshold Sajdah: <strong>> 40° tilt</strong></div>
+          </div>
+        </div>
+      </details>
+    </main>
+
+    <!-- Invisible Audio element for keeping iOS/Android web app active during sleep -->
+    <audio id="silent-audio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="></audio>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
