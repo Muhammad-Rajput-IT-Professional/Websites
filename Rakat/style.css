@@ -61,6 +61,19 @@ body {
   font-weight: 800;
   letter-spacing: -0.5px;
   color: var(--text-main);
+  display: inline;
+}
+
+.version-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--primary-glow);
+  color: var(--primary-light);
+  border: 1px solid var(--primary-light);
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 .header-badges {
