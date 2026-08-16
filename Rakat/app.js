@@ -30,54 +30,8 @@ let isInSajdahPosition = false;
 let lastSajdahTime = 0;
 const SAJDAH_COOLDOWN_MS = 2500;
 
-// Speech Synth setup with Voice Selector
+// Speech Synth setup - Standard System Voice Engine
 const synth = window.speechSynthesis;
-let speechVoice = null;
-
-function populateVoices() {
-  if (!('speechSynthesis' in window)) return;
-  
-  const voiceSelect = document.getElementById('voice-select');
-  if (!voiceSelect) return;
-
-  const voices = synth.getVoices();
-  voiceSelect.innerHTML = '';
-
-  if (voices.length === 0) return;
-
-  let defaultIndex = 0;
-  voices.forEach((v, index) => {
-    const option = document.createElement('option');
-    option.value = index;
-    option.textContent = `${v.name} (${v.lang})`;
-    
-    // Auto-select male English voices if available
-    const nameLower = v.name.toLowerCase();
-    if (v.lang.startsWith('en') && (
-      nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy') || 
-      nameLower.includes('george') || nameLower.includes('james') || nameLower.includes('daniel')
-    )) {
-      defaultIndex = index;
-    }
-    voiceSelect.appendChild(option);
-  });
-
-  voiceSelect.selectedIndex = defaultIndex;
-  speechVoice = voices[defaultIndex];
-
-  voiceSelect.onchange = () => {
-    speechVoice = voices[voiceSelect.value];
-  };
-}
-
-function initVoice() {
-  if ('speechSynthesis' in window) {
-    populateVoices();
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-      speechSynthesis.onvoiceschanged = populateVoices;
-    }
-  }
-}
 
 function speak(text) {
   const audioEnabled = document.getElementById('audio-toggle').checked;
@@ -85,9 +39,8 @@ function speak(text) {
 
   synth.cancel(); // Clear queued utterances
   const utterance = new SpeechSynthesisUtterance(text);
-  if (speechVoice) utterance.voice = speechVoice;
-  utterance.rate = 0.95;
-  utterance.pitch = 0.85; // Deeper male pitch
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
   utterance.volume = 1.0;
   synth.speak(utterance);
 }
@@ -267,8 +220,6 @@ function resetCounter() {
 
 // Initializer
 document.addEventListener('DOMContentLoaded', () => {
-  initVoice();
-
   document.getElementById('start-btn').addEventListener('click', startTracking);
   document.getElementById('reset-btn').addEventListener('click', resetCounter);
 
