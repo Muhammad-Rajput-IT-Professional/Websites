@@ -113,15 +113,16 @@ function handleOrientation(event) {
       if (sensorState) sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
     }
   } else if (absPitch >= SAJDAH_EXIT_THRESHOLD) {
-    // Smartphone returned to vertical (Standing up)
+    // Smartphone returned to vertical (Standing up upright)
     if (isInSajdahPosition) {
       isInSajdahPosition = false;
+      lastSajdahTime = now; // Update timestamp when rising up
 
       if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
       if (postureText) postureText.textContent = '🧍 STANDING UPRIGHT';
       if (sensorState) sensorState.textContent = 'Standing Upright';
 
-      // Check if we just completed 2 Sajdahs and are now standing up!
+      // Check if 2 Sajdahs were completed AND user is now standing back up upright!
       if (sajdahInCurrentRakat >= 2) {
         onStandingUpForNextRakat();
       }
@@ -190,7 +191,9 @@ function enableTrackingEngine() {
     badge.className = 'badge badge-on';
   }
 
+  // Support both standard deviceorientation and Firefox fallback
   window.addEventListener('deviceorientation', handleOrientation, true);
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
 
   requestWakeLock().catch(e => console.log(e));
   speak("Tracking started. Place phone in pocket.");
@@ -198,6 +201,7 @@ function enableTrackingEngine() {
 
 function stopTracking() {
   window.removeEventListener('deviceorientation', handleOrientation, true);
+  window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
   isTracking = false;
   releaseWakeLock();
 
