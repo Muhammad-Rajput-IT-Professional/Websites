@@ -19,7 +19,7 @@
         <span class="icon">🕌</span>
         <div>
           <h1>Rakat Tracker</h1>
-          <span class="version-tag">v5</span>
+          <span class="version-tag">v6</span>
         </div>
       </div>
       <div class="header-badges">
@@ -58,8 +58,15 @@
           </select>
         </div>
 
+        <div class="setting-item">
+          <label for="voice-select">Voice Engine:</label>
+          <select id="voice-select">
+            <option value="">Loading voices...</option>
+          </select>
+        </div>
+
         <div class="setting-item toggle-item">
-          <span>Male Voice Announcement</span>
+          <span>Voice Announcement</span>
           <label class="switch">
             <input type="checkbox" id="audio-toggle" checked>
             <span class="slider round"></span>

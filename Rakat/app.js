@@ -12,33 +12,69 @@ let targetRakat = 4;
 
 let isInSajdahPosition = false;
 let lastSajdahTime = 0;
-const SAJDAH_COOLDOWN_MS = 3000; // Minimum delay between sajdahs to avoid false double hits
+/**
+ * Rakat Tracker Engine (v6)
+ * - Restores reliable v1/v2 beta pitch sensor algorithm
+ * - Counts 2 Sajdahs per Rakat
+ * - Stays quiet during Sajdahs
+ * - Speaks "Starting Rakat X" IMMEDIATELY when standing up for the next Rakat
+ * - Includes Voice Selection Dropdown & pitch adjustment
+ */
 
-// Speech Synth setup
+let isTracking = false;
+let rakatCount = 1;
+let sajdahInCurrentRakat = 0;
+let targetRakat = 4;
+
+let isInSajdahPosition = false;
+let lastSajdahTime = 0;
+const SAJDAH_COOLDOWN_MS = 2500;
+
+// Speech Synth setup with Voice Selector
 const synth = window.speechSynthesis;
 let speechVoice = null;
 
+function populateVoices() {
+  if (!('speechSynthesis' in window)) return;
+  
+  const voiceSelect = document.getElementById('voice-select');
+  if (!voiceSelect) return;
+
+  const voices = synth.getVoices();
+  voiceSelect.innerHTML = '';
+
+  if (voices.length === 0) return;
+
+  let defaultIndex = 0;
+  voices.forEach((v, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = `${v.name} (${v.lang})`;
+    
+    // Auto-select male English voices if available
+    const nameLower = v.name.toLowerCase();
+    if (v.lang.startsWith('en') && (
+      nameLower.includes('male') || nameLower.includes('david') || nameLower.includes('guy') || 
+      nameLower.includes('george') || nameLower.includes('james') || nameLower.includes('daniel')
+    )) {
+      defaultIndex = index;
+    }
+    voiceSelect.appendChild(option);
+  });
+
+  voiceSelect.selectedIndex = defaultIndex;
+  speechVoice = voices[defaultIndex];
+
+  voiceSelect.onchange = () => {
+    speechVoice = voices[voiceSelect.value];
+  };
+}
+
 function initVoice() {
   if ('speechSynthesis' in window) {
-    const loadVoices = () => {
-      const voices = synth.getVoices();
-      // Search specifically for male English voices (e.g. David, George, Guy, James, Male, etc.)
-      const maleVoice = voices.find(v => v.lang.startsWith('en') && (
-        v.name.toLowerCase().includes('male') ||
-        v.name.toLowerCase().includes('david') ||
-        v.name.toLowerCase().includes('george') ||
-        v.name.toLowerCase().includes('guy') ||
-        v.name.toLowerCase().includes('james') ||
-        v.name.toLowerCase().includes('ryan') ||
-        v.name.toLowerCase().includes('daniel') ||
-        v.name.toLowerCase().includes('alex')
-      ));
-
-      speechVoice = maleVoice || voices.find(v => v.lang.startsWith('en')) || voices[0];
-    };
-    loadVoices();
+    populateVoices();
     if (speechSynthesis.onvoiceschanged !== undefined) {
-      speechSynthesis.onvoiceschanged = loadVoices;
+      speechSynthesis.onvoiceschanged = populateVoices;
     }
   }
 }
@@ -51,7 +87,7 @@ function speak(text) {
   const utterance = new SpeechSynthesisUtterance(text);
   if (speechVoice) utterance.voice = speechVoice;
   utterance.rate = 0.95;
-  utterance.pitch = 0.85; // Deeper pitch for clear male voice tone
+  utterance.pitch = 0.85; // Deeper male pitch
   utterance.volume = 1.0;
   synth.speak(utterance);
 }
@@ -61,26 +97,17 @@ const silentAudio = document.getElementById('silent-audio');
 let wakeLock = null;
 
 async function requestWakeLock() {
-  // 1. Play silent loop audio to keep audio session alive
   try {
     if (silentAudio) silentAudio.play();
   } catch (err) {
     console.log("Audio play error", err);
   }
 
-  // 2. Request official Screen WakeLock API to keep screen awake (prevents Android sensor freeze)
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
       document.getElementById('wake-lock-badge').textContent = 'Screen Kept Awake';
       document.getElementById('wake-lock-badge').classList.replace('badge-off', 'badge-on');
-      
-      wakeLock.addEventListener('release', () => {
-        if (isTracking) {
-          // Re-request if released unexpectedly
-          requestWakeLock();
-        }
-      });
     } catch (err) {
       console.log('WakeLock error:', err);
     }
@@ -97,75 +124,72 @@ function releaseWakeLock() {
 }
 
 /**
- * Clean Rakat State Machine
- * State 0: Standing / Upright (Initial)
- * State 1: Down / Horizontal (Thigh bent for Ruku & Sajdah)
- * State 2: Returning Upright -> Immediately announce next Rakat!
+ * Reliable v1 / v2 Front Pocket Orientation Algorithm:
+ * - Standing / Ruku: Phone vertical in pocket (Pitch / absBeta ~ 65° - 90°)
+ * - Sajdah: Thigh tilts forward horizontal to ground (Pitch / absBeta < 38°)
  */
-let isDown = false;
-let lastStateChangeTime = 0;
-const STATE_COOLDOWN_MS = 2500; // Prevent rapid flicker
-
 function handleOrientation(event) {
   if (!isTracking) return;
 
-  const beta = event.beta; // Front-back tilt [-180, 180]
-  if (beta === null || beta === undefined) return;
+  let pitch = event.beta; // Tilt front-to-back [-180, 180]
+  if (pitch === null || pitch === undefined) return;
 
-  const absBeta = Math.abs(beta);
-  
-  // Calculate tilt angle relative to ground (0° = horizontal, 90° = vertical standing)
-  let tiltAngle = absBeta;
-  if (absBeta > 90) tiltAngle = 180 - absBeta;
+  const absPitch = Math.abs(pitch);
 
-  // Debug meter
-  document.getElementById('raw-pitch').textContent = `${Math.round(tiltAngle)}° tilt`;
-  const fillPercentage = Math.min(100, Math.max(5, (tiltAngle / 90) * 100));
+  // Update Raw Debug Display
+  document.getElementById('raw-pitch').textContent = `${Math.round(absPitch)}° pitch`;
+  const fillPercentage = Math.min(100, Math.max(5, (absPitch / 90) * 100));
   document.getElementById('pitch-fill').style.height = `${fillPercentage}%`;
 
   const motionIndicator = document.getElementById('motion-indicator');
   const postureText = document.getElementById('posture-text');
   const sensorState = document.getElementById('sensor-state');
 
-  // THRESHOLDS FOR POCKET TILT:
-  // Down Position threshold: < 45° tilt (bent down for Ruku/Sajdah)
-  // Upright Standing threshold: > 70° tilt (standing straight)
-  const DOWN_THRESHOLD = 45;
-  const UPRIGHT_THRESHOLD = 70;
+  // THRESHOLDS:
+  // Sajdah trigger: Pitch drops <= 38°
+  // Standing trigger: Pitch rises >= 60°
+  const SAJDAH_ENTER_THRESHOLD = 38; 
+  const SAJDAH_EXIT_THRESHOLD = 60;
 
   const now = Date.now();
 
-  if (tiltAngle <= DOWN_THRESHOLD) {
-    // User went down
-    if (!isDown && (now - lastStateChangeTime > STATE_COOLDOWN_MS)) {
-      isDown = true;
-      lastStateChangeTime = now;
+  if (absPitch <= SAJDAH_ENTER_THRESHOLD) {
+    // Smartphone entered Sajdah position
+    if (!isInSajdahPosition && (now - lastSajdahTime > SAJDAH_COOLDOWN_MS)) {
+      isInSajdahPosition = true;
+      lastSajdahTime = now;
+
+      sajdahInCurrentRakat++;
 
       motionIndicator.classList.add('active-sajdah');
-      postureText.textContent = '🙇 DOWN (BENT / SAJDAH)';
-      sensorState.textContent = 'Down';
+      postureText.textContent = `🙇 SAJDAH (${sajdahInCurrentRakat}/2)`;
+      sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
     }
-  } else if (tiltAngle >= UPRIGHT_THRESHOLD) {
-    // User stood back UP!
-    if (isDown && (now - lastStateChangeTime > STATE_COOLDOWN_MS)) {
-      isDown = false;
-      lastStateChangeTime = now;
+  } else if (absPitch >= SAJDAH_EXIT_THRESHOLD) {
+    // Smartphone returned to vertical (Standing up)
+    if (isInSajdahPosition) {
+      isInSajdahPosition = false;
 
       motionIndicator.classList.remove('active-sajdah');
       postureText.textContent = '🧍 STANDING UPRIGHT';
       sensorState.textContent = 'Standing Upright';
 
-      onStoodUpForNextRakat();
+      // Check if we just completed 2 Sajdahs and are now standing up!
+      if (sajdahInCurrentRakat >= 2) {
+        onStandingUpForNextRakat();
+      }
     }
   }
 }
 
-// Called IMMEDIATELY as soon as leg reaches vertical standing posture
-function onStoodUpForNextRakat() {
+// Called IMMEDIATELY when standing up after completing 2 Sajdahs
+function onStandingUpForNextRakat() {
   targetRakat = parseInt(document.getElementById('target-rakat').value, 10);
 
   if (rakatCount < targetRakat) {
     rakatCount++;
+    sajdahInCurrentRakat = 0;
+
     document.getElementById('rakat-display').textContent = rakatCount;
 
     // Immediately announce e.g. "Starting Rakat 2" in male voice as soon as you stand up!
@@ -183,7 +207,6 @@ async function startTracking() {
     return;
   }
 
-  // Request Motion/Orientation permission on iOS if required
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
       const response = await DeviceOrientationEvent.requestPermission();
@@ -208,7 +231,7 @@ async function startTracking() {
   document.getElementById('sensor-badge').textContent = 'Sensor Active';
   document.getElementById('sensor-badge').classList.replace('badge-off', 'badge-on');
 
-  speak("Tracking started. Put phone in pocket.");
+  speak("Tracking started");
 }
 
 function stopTracking() {
@@ -226,8 +249,8 @@ function stopTracking() {
 
 function resetCounter() {
   rakatCount = 1;
-  isDown = false;
-  lastStateChangeTime = 0;
+  sajdahInCurrentRakat = 0;
+  isInSajdahPosition = false;
 
   document.getElementById('rakat-display').textContent = '1';
   document.getElementById('motion-indicator').classList.remove('active-sajdah');
