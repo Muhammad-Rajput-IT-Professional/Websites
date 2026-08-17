@@ -1,17 +1,32 @@
 /**
- * Rakat Tracker Engine (v10 - Clean Fixed)
+ * Rakat Tracker Engine (v13 - Robust 3-Phase Salah State Machine)
+ *
+ * Physical cycle in pocket:
+ * 1. STANDING / QIYAM: Pitch is upright (~55° to 90°).
+ * 2. SAJDAH 1: Pitch tilts forward flat (<= 38°). Must stay down for >= 800ms.
+ * 3. SITTING / JALSAH: User sits between sajdahs (~40° - 65°).
+ * 4. SAJDAH 2: Pitch tilts forward flat again (<= 38°). Must stay down for >= 800ms.
+ * 5. SITTING (Tashahhud) or STANDING:
+ *    When user rises back to STANDING (pitch >= 58° for >= 700ms) AFTER completing Sajdah 2:
+ *    -> Promptly announce "Starting Rakat X"!
  */
 
 let isTracking = false;
 let rakatCount = 1;
-let sajdahInCurrentRakat = 0;
 let targetRakat = 4;
 
-let isInSajdahPosition = false;
-let lastSajdahTime = 0;
-const SAJDAH_COOLDOWN_MS = 2500;
+// States: 'STANDING' -> 'SAJDAH_1' -> 'BETWEEN_SAJDAHS' -> 'SAJDAH_2' -> 'READY_FOR_STAND'
+let prayerState = 'STANDING';
 
-// Speech Synth setup - Standard System Voice Engine
+let sajdahDownStartTime = 0;
+let standingStartTime = 0;
+let lastSajdahExitTime = 0;
+
+const SAJDAH_ENTER_THRESHOLD = 38; // Thigh tilts horizontal (< 38°)
+const STANDING_ENTER_THRESHOLD = 58; // Thigh upright in pocket (> 58°)
+const MIN_SAJDAH_HOLD_MS = 800; // Must stay in sajdah for at least 0.8s to avoid transient leg movements
+const MIN_STAND_HOLD_MS = 600; // Must stand upright for at least 0.6s to confirm actual standing up
+
 function speak(text) {
   try {
     const audioToggle = document.getElementById('audio-toggle');
@@ -69,11 +84,6 @@ function releaseWakeLock() {
   }
 }
 
-/**
- * Reliable v1 / v2 Front Pocket Orientation Algorithm:
- * - Standing / Ruku: Phone vertical in pocket (Pitch / absBeta ~ 65° - 90°)
- * - Sajdah: Thigh tilts forward horizontal to ground (Pitch / absBeta < 38°)
- */
 function handleOrientation(event) {
   if (!isTracking) return;
 
@@ -81,8 +91,9 @@ function handleOrientation(event) {
   if (pitch === null || pitch === undefined) return;
 
   const absPitch = Math.abs(pitch);
+  const now = Date.now();
 
-  // Update Raw Debug Display
+  // Update UI Meters
   const rawPitchEl = document.getElementById('raw-pitch');
   const pitchFillEl = document.getElementById('pitch-fill');
   if (rawPitchEl) rawPitchEl.textContent = `${Math.round(absPitch)}° pitch`;
@@ -95,55 +106,97 @@ function handleOrientation(event) {
   const postureText = document.getElementById('posture-text');
   const sensorState = document.getElementById('sensor-state');
 
-  // THRESHOLDS:
-  // Sajdah flat position: pitch <= 35° (thigh horizontal to floor)
-  // Strict Standing Upright position: pitch >= 72° (thigh completely vertical)
-  const SAJDAH_ENTER_THRESHOLD = 35; 
-  const STANDING_THRESHOLD = 72;
+  const isFlat = absPitch <= SAJDAH_ENTER_THRESHOLD;
+  const isUpright = absPitch >= STANDING_ENTER_THRESHOLD;
 
-  const now = Date.now();
-
-  if (absPitch <= SAJDAH_ENTER_THRESHOLD) {
-    // Smartphone entered Sajdah position flat on ground
-    if (!isInSajdahPosition && (now - lastSajdahTime > SAJDAH_COOLDOWN_MS)) {
-      isInSajdahPosition = true;
-      lastSajdahTime = now;
-
-      sajdahInCurrentRakat++;
-
-      if (motionIndicator) motionIndicator.classList.add('active-sajdah');
-      if (postureText) postureText.textContent = `🙇 SAJDAH (${sajdahInCurrentRakat}/2)`;
-      if (sensorState) sensorState.textContent = `Sajdah ${sajdahInCurrentRakat}`;
+  // Phase 1: In Standing / Qiyam -> looking for Sajdah 1
+  if (prayerState === 'STANDING') {
+    if (isFlat) {
+      if (sajdahDownStartTime === 0) sajdahDownStartTime = now;
+      if (now - sajdahDownStartTime >= MIN_SAJDAH_HOLD_MS) {
+        prayerState = 'SAJDAH_1';
+        sajdahDownStartTime = 0;
+        if (motionIndicator) motionIndicator.classList.add('active-sajdah');
+        if (postureText) postureText.textContent = '🙇 SAJDAH 1';
+        if (sensorState) sensorState.textContent = 'In Sajdah 1';
+      }
+    } else {
+      sajdahDownStartTime = 0;
     }
-  } else if (absPitch >= STANDING_THRESHOLD) {
-    // Smartphone returned to true VERTICAL STANDING UPRIGHT (Legs fully straight)
-    if (isInSajdahPosition) {
-      isInSajdahPosition = false;
-      lastSajdahTime = now;
+  }
 
+  // Phase 2: In Sajdah 1 -> looking for rising into sitting / Jalsah
+  else if (prayerState === 'SAJDAH_1') {
+    if (!isFlat) {
+      // User sat up from Sajdah 1
+      prayerState = 'BETWEEN_SAJDAHS';
+      lastSajdahExitTime = now;
       if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
-      if (postureText) postureText.textContent = '🧍 STANDING UPRIGHT';
-      if (sensorState) sensorState.textContent = 'Standing Upright';
+      if (postureText) postureText.textContent = '🧎 SITTING (JALSAH)';
+      if (sensorState) sensorState.textContent = 'Sitting between Sajdahs';
+    }
+  }
 
-      // CRITICAL FIX: Only trigger Rakat increment if 2 full Sajdahs were registered AND you have NOW STOOD ALL THE WAY UP!
-      if (sajdahInCurrentRakat >= 2) {
+  // Phase 3: In Sitting / Between Sajdahs -> looking for Sajdah 2
+  else if (prayerState === 'BETWEEN_SAJDAHS') {
+    // Cooldown of at least 800ms before accepting Sajdah 2
+    if (isFlat && (now - lastSajdahExitTime > 800)) {
+      if (sajdahDownStartTime === 0) sajdahDownStartTime = now;
+      if (now - sajdahDownStartTime >= MIN_SAJDAH_HOLD_MS) {
+        prayerState = 'SAJDAH_2';
+        sajdahDownStartTime = 0;
+        if (motionIndicator) motionIndicator.classList.add('active-sajdah');
+        if (postureText) postureText.textContent = '🙇 SAJDAH 2';
+        if (sensorState) sensorState.textContent = 'In Sajdah 2';
+      }
+    } else {
+      sajdahDownStartTime = 0;
+    }
+  }
+
+  // Phase 4: In Sajdah 2 -> looking for rising (into sitting or standing)
+  else if (prayerState === 'SAJDAH_2') {
+    if (!isFlat) {
+      prayerState = 'READY_FOR_STAND';
+      standingStartTime = 0;
+      if (motionIndicator) motionIndicator.classList.remove('active-sajdah');
+      if (postureText) postureText.textContent = '⏳ COMPLETED 2 SAJDAHS';
+      if (sensorState) sensorState.textContent = 'Waiting for Standing Up';
+    }
+  }
+
+  // Phase 5: Ready for standing -> User is either in Tashahhud or getting up
+  else if (prayerState === 'READY_FOR_STAND') {
+    if (isUpright) {
+      if (standingStartTime === 0) standingStartTime = now;
+      if (now - standingStartTime >= MIN_STAND_HOLD_MS) {
+        // CONFIRMED FULL STANDING UP FOR NEXT RAKAT!
         onStandingUpForNextRakat();
       }
+    } else {
+      standingStartTime = 0;
     }
   }
 }
 
-// Called IMMEDIATELY when standing up after completing 2 Sajdahs
 function onStandingUpForNextRakat() {
   const targetSelect = document.getElementById('target-rakat');
   targetRakat = targetSelect ? parseInt(targetSelect.value, 10) : 4;
 
   if (rakatCount < targetRakat) {
     rakatCount++;
-    sajdahInCurrentRakat = 0;
+    prayerState = 'STANDING';
+    sajdahDownStartTime = 0;
+    standingStartTime = 0;
 
     const rakatDisplay = document.getElementById('rakat-display');
     if (rakatDisplay) rakatDisplay.textContent = rakatCount;
+
+    const postureText = document.getElementById('posture-text');
+    if (postureText) postureText.textContent = '🧍 STANDING UPRIGHT';
+
+    const sensorState = document.getElementById('sensor-state');
+    if (sensorState) sensorState.textContent = `Rakat ${rakatCount} Started`;
 
     speak(`Starting Rakat ${rakatCount}`);
   } else {
@@ -159,7 +212,6 @@ function startTracking() {
     return;
   }
 
-  // Request Motion/Orientation permission on iOS if required
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     DeviceOrientationEvent.requestPermission().then(response => {
       if (response === 'granted') {
@@ -178,9 +230,10 @@ function startTracking() {
 
 function enableTrackingEngine() {
   isTracking = true;
-  isInSajdahPosition = false;
-  sajdahInCurrentRakat = 0;
-  lastSajdahTime = Date.now() + 4000; // 4-second Grace Period while putting phone in pocket
+  prayerState = 'STANDING';
+  sajdahDownStartTime = 0;
+  standingStartTime = 0;
+  lastSajdahExitTime = 0;
 
   const startBtn = document.getElementById('start-btn');
   if (startBtn) {
@@ -194,9 +247,11 @@ function enableTrackingEngine() {
     badge.className = 'badge badge-on';
   }
 
-  // Support both standard deviceorientation and Firefox fallback
-  window.addEventListener('deviceorientation', handleOrientation, true);
-  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  // Initial 3.5-second placement grace period
+  setTimeout(() => {
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  }, 3500);
 
   requestWakeLock().catch(e => console.log(e));
   speak("Tracking started. Place phone in pocket.");
@@ -223,8 +278,10 @@ function stopTracking() {
 
 function resetCounter() {
   rakatCount = 1;
-  sajdahInCurrentRakat = 0;
-  isInSajdahPosition = false;
+  prayerState = 'STANDING';
+  sajdahDownStartTime = 0;
+  standingStartTime = 0;
+  lastSajdahExitTime = 0;
 
   const rakatDisplay = document.getElementById('rakat-display');
   if (rakatDisplay) rakatDisplay.textContent = '1';
