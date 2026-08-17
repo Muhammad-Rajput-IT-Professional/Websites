@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Rakat & Sajdah Counter</title>
-  <meta name="description" content="Hands-free prayer (Salah) Sajdah and Rakat tracker using phone orientation sensor and voice announcements. Works in pocket.">
+  <meta name="description" content="Hands-free prayer (Salah) Sajdah and Rakat tracker using phone orientation sensor or camera proximity and voice announcements.">
   <meta name="theme-color" content="#0d9488">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
@@ -19,85 +19,178 @@
         <span class="icon">🕌</span>
         <div>
           <h1>Rakat Tracker</h1>
-          <span class="version-tag">v13</span>
+          <span class="version-tag">v14</span>
         </div>
       </div>
       <div class="header-badges">
         <span id="wake-lock-badge" class="badge badge-off">Screen Lock Off</span>
-        <span id="sensor-badge" class="badge badge-off">Sensor Standby</span>
+        <span id="sensor-badge" class="badge badge-off">Standby</span>
       </div>
     </header>
 
+    <!-- Mode Selector Tabs -->
+    <nav class="mode-tabs" aria-label="Tracker Mode">
+      <button id="tab-pocket" class="tab-btn active">
+        <span>📱 Pocket Mode</span>
+      </button>
+      <button id="tab-selfie" class="tab-btn">
+        <span>📷 Mat Selfie Mode</span>
+      </button>
+    </nav>
+
     <main class="main-content">
-      <!-- Big Display Card -->
-      <div class="counter-card">
-        <div class="stat-group">
-          <div class="stat-label">Current Rakat</div>
-          <div class="stat-value main-stat" id="rakat-display">1</div>
-        </div>
-
-        <div class="motion-indicator-wrapper">
-          <div class="motion-indicator" id="motion-indicator">
-            <span id="posture-text">Standing / Upright</span>
+      <!-- ================= POCKET MODE VIEW ================= -->
+      <section id="pocket-view" class="mode-view">
+        <!-- Big Display Card -->
+        <div class="counter-card">
+          <div class="stat-group">
+            <div class="stat-label">Current Rakat</div>
+            <div class="stat-value main-stat" id="rakat-display">1</div>
           </div>
-          <div class="pitch-meter">
-            <div class="pitch-fill" id="pitch-fill" style="height: 10%;"></div>
+
+          <div class="motion-indicator-wrapper">
+            <div class="motion-indicator" id="motion-indicator">
+              <span id="posture-text">Standing / Upright</span>
+            </div>
+            <div class="pitch-meter">
+              <div class="pitch-fill" id="pitch-fill" style="height: 10%;"></div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Settings / Configuration -->
-      <section class="controls-section">
-        <div class="setting-item">
-          <label for="target-rakat">Target Rakats:</label>
-          <select id="target-rakat">
-            <option value="2">2 (Fajr / Sunnah)</option>
-            <option value="3">3 (Maghrib / Witr)</option>
-            <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
-            <option value="99">Unlimited</option>
-          </select>
+        <!-- Settings / Configuration -->
+        <section class="controls-section">
+          <div class="setting-item">
+            <label for="target-rakat">Target Rakats:</label>
+            <select id="target-rakat">
+              <option value="2">2 (Fajr / Sunnah)</option>
+              <option value="3">3 (Maghrib / Witr)</option>
+              <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
+              <option value="99">Unlimited</option>
+            </select>
+          </div>
+
+          <div class="setting-item toggle-item">
+            <span>Voice Announcement</span>
+            <label class="switch">
+              <input type="checkbox" id="audio-toggle" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button id="start-btn" class="btn btn-primary btn-large">
+            <span class="btn-icon">▶</span> Start Tracking
+          </button>
+          <button id="reset-btn" class="btn btn-secondary">
+            Reset Counter
+          </button>
         </div>
 
-        <div class="setting-item toggle-item">
-          <span>Voice Announcement</span>
-          <label class="switch">
-            <input type="checkbox" id="audio-toggle" checked>
-            <span class="slider round"></span>
-          </label>
-        </div>
+        <!-- Pocket Guidance -->
+        <details class="guidance-card" open>
+          <summary>💡 Pocket Placement & Sensor Tips</summary>
+          <div class="guidance-content">
+            <ul>
+              <li><strong>Pocket Placement:</strong> Place phone vertically in front pocket with top of phone pointing UP or DOWN.</li>
+              <li><strong>Screen-On Screen Dimming:</strong> Android browsers turn off sensor hardware when the screen is locked/off. The app automatically keeps the screen ON and dims it to 0% black so it won't drain battery or register accidental pocket touches.</li>
+              <li><strong>Detection Logic:</strong> When you go down to Sajdah, your thigh tilts horizontal. When you stand back up for Rakat 2, it announces: <em>"Rakat 1 Complete. Now starting Rakat 2"</em>.</li>
+            </ul>
+            <div class="raw-data">
+              <div>Live Tilt Angle: <strong id="raw-pitch">0°</strong></div>
+              <div>Status: <strong id="sensor-state">Waiting...</strong></div>
+            </div>
+          </div>
+        </details>
       </section>
 
-      <!-- Action Buttons -->
-      <div class="action-buttons">
-        <button id="start-btn" class="btn btn-primary btn-large">
-          <span class="btn-icon">▶</span> Start Tracking
-        </button>
-        <button id="reset-btn" class="btn btn-secondary">
-          Reset Counter
-        </button>
-      </div>
+      <!-- ================= MAT SELFIE MODE VIEW ================= -->
+      <section id="selfie-view" class="mode-view" style="display: none;">
+        <!-- Big Display Card for Mat Camera -->
+        <div class="counter-card selfie-counter-card">
+          <div class="stat-group">
+            <div class="stat-label">Current Rakat (Selfie Mode)</div>
+            <div class="stat-value main-stat" id="selfie-rakat-display">1</div>
+          </div>
 
-      <!-- Pocket Guidance -->
-      <details class="guidance-card" open>
-        <summary>💡 Pocket Placement & Sensor Tips</summary>
-        <div class="guidance-content">
-          <ul>
-            <li><strong>Pocket Placement:</strong> Place phone vertically in front pocket with top of phone pointing UP or DOWN.</li>
-            <li><strong>Screen-On Screen Dimming:</strong> Android browsers turn off sensor hardware when the screen is locked/off. The app automatically keeps the screen ON and dims it to 0% black so it won't drain battery or register accidental pocket touches.</li>
-            <li><strong>Detection Logic:</strong> When you go down to Sajdah, your thigh tilts horizontal. When you stand back up for Rakat 2, it announces: <em>"Rakat 1 Complete. Now starting Rakat 2"</em>.</li>
-          </ul>
-          <div class="raw-data">
-            <div>Live Tilt Angle: <strong id="raw-pitch">0°</strong></div>
-            <div>Status: <strong id="sensor-state">Waiting...</strong></div>
+          <div class="motion-indicator-wrapper">
+            <div class="motion-indicator" id="selfie-motion-indicator">
+              <span id="selfie-posture-text">Standing / Distant</span>
+            </div>
+            <div class="pitch-meter">
+              <div class="pitch-fill" id="selfie-proximity-fill" style="height: 5%;"></div>
+            </div>
+          </div>
+
+          <!-- Video & Canvas Preview Area -->
+          <div class="camera-preview-container">
+            <video id="selfie-video" autoplay playsinline muted></video>
+            <canvas id="selfie-canvas" style="display: none;"></canvas>
+            <div class="camera-overlay">
+              <span id="camera-status-text">Camera Standby</span>
+              <span id="proximity-metric">Proximity: 0%</span>
+            </div>
           </div>
         </div>
-      </details>
+
+        <!-- Settings / Configuration for Selfie Mode -->
+        <section class="controls-section">
+          <div class="setting-item">
+            <label for="selfie-target-rakat">Target Rakats:</label>
+            <select id="selfie-target-rakat">
+              <option value="2">2 (Fajr / Sunnah)</option>
+              <option value="3">3 (Maghrib / Witr)</option>
+              <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
+              <option value="99">Unlimited</option>
+            </select>
+          </div>
+
+          <div class="setting-item">
+            <label for="proximity-sensitivity">Sensitivity:</label>
+            <select id="proximity-sensitivity">
+              <option value="medium" selected>Standard (Recommended)</option>
+              <option value="high">High Sensitivity (Dim Light / Farther)</option>
+              <option value="low">Low Sensitivity (Bright Sunlight)</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Action Buttons for Selfie Mode -->
+        <div class="action-buttons">
+          <button id="selfie-start-btn" class="btn btn-primary btn-large">
+            <span class="btn-icon">📷</span> Start Selfie Tracking
+          </button>
+          <button id="selfie-reset-btn" class="btn btn-secondary">
+            Reset Counter
+          </button>
+        </div>
+
+        <!-- Selfie Guidance -->
+        <details class="guidance-card" open>
+          <summary>💡 Mat Placement & Camera Proximity Tips</summary>
+          <div class="guidance-content">
+            <ul>
+              <li><strong>Placement:</strong> Place the phone flat facing upward in the <strong>middle of your prayer mat</strong> (between your knees and where your forehead lands).</li>
+              <li><strong>How it detects:</strong> When you go down into Sajdah, your body/torso/chest covers the top camera (high proximity occlusion). When you sit or stand up, the camera clears up (distant).</li>
+              <li><strong>Flow:</strong> After 2 Sajdahs are detected, as soon as you stand back up and step away, it announces: <em>"Starting Rakat X"</em>!</li>
+            </ul>
+            <div class="raw-data">
+              <div>Proximity: <strong id="selfie-raw-prox">0%</strong></div>
+              <div>State: <strong id="selfie-sensor-state">Standby</strong></div>
+            </div>
+          </div>
+        </details>
+      </section>
     </main>
 
     <!-- Audio Beep Engine & Silent Keep-Alive -->
     <audio id="silent-audio" loop playsinline src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="></audio>
   </div>
 
+  <!-- Keep pocket mode in app.js and selfie mode in selfie.js for complete separation -->
   <script src="app.js"></script>
+  <script src="selfie.js"></script>
 </body>
 </html>
