@@ -170,6 +170,51 @@ body {
   color: var(--text-main);
 }
 
+/* Camera Mode Specific Hero Card */
+.camera-counter-card {
+  padding: 30px 20px;
+  gap: 16px;
+}
+
+.camera-huge-rakat {
+  font-size: 6.5rem !important;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary-light);
+  text-shadow: 0 0 28px var(--primary-glow);
+  margin: 6px 0;
+}
+
+.sajdah-stat-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--card-border);
+  padding: 6px 16px;
+  border-radius: 20px;
+  margin: 0 auto;
+}
+
+.sajdah-badge-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.sajdah-stat-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.scrollable-controls {
+  margin-top: 4px;
+}
+
 /* Counter Card */
 .counter-card {
   background: var(--card-bg);
