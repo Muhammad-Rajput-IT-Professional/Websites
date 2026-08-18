@@ -49,35 +49,46 @@ function speakCamera(text) {
   }
 }
 
-// Tab Switching Handling
-document.addEventListener('DOMContentLoaded', () => {
+// Global Tab Switching Function
+function switchMode(mode) {
   const tabPocket = document.getElementById('tab-pocket');
   const tabCamera = document.getElementById('tab-camera');
   const pocketView = document.getElementById('pocket-view');
   const cameraView = document.getElementById('camera-view');
 
-  if (tabPocket && tabCamera) {
-    tabPocket.addEventListener('click', () => {
-      tabPocket.classList.add('active');
-      tabCamera.classList.remove('active');
-      pocketView.style.display = 'block';
-      cameraView.style.display = 'none';
+  if (!tabPocket || !tabCamera || !pocketView || !cameraView) return;
 
-      // If camera mode was running, stop it
-      if (isCameraTracking) stopCameraTracking();
-    });
+  if (mode === 'pocket') {
+    tabPocket.classList.add('active');
+    tabCamera.classList.remove('active');
+    pocketView.style.display = 'block';
+    cameraView.style.display = 'none';
 
-    tabCamera.addEventListener('click', () => {
-      tabCamera.classList.add('active');
-      tabPocket.classList.remove('active');
-      cameraView.style.display = 'block';
-      pocketView.style.display = 'none';
+    // If camera mode was running, stop it
+    if (isCameraTracking) stopCameraTracking();
+  } else if (mode === 'camera') {
+    tabCamera.classList.add('active');
+    tabPocket.classList.remove('active');
+    cameraView.style.display = 'block';
+    pocketView.style.display = 'none';
 
-      // If pocket mode was running, stop it via its stop function
-      if (typeof stopTracking === 'function' && typeof isTracking !== 'undefined' && isTracking) {
-        stopTracking();
-      }
-    });
+    // If pocket mode was running, stop it
+    if (typeof stopTracking === 'function' && typeof isTracking !== 'undefined' && isTracking) {
+      stopTracking();
+    }
+  }
+}
+
+// Tab Switching & Button Initializer
+function initCameraModeUI() {
+  const tabPocket = document.getElementById('tab-pocket');
+  const tabCamera = document.getElementById('tab-camera');
+
+  if (tabPocket) {
+    tabPocket.addEventListener('click', () => switchMode('pocket'));
+  }
+  if (tabCamera) {
+    tabCamera.addEventListener('click', () => switchMode('camera'));
   }
 
   // Button Listeners for Camera Mode
@@ -100,7 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
       else proximityThreshold = 0.55;
     });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCameraModeUI);
+} else {
+  initCameraModeUI();
+}
 
 async function toggleCameraTracking() {
   if (isCameraTracking) {
