@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Rakat & Sajdah Counter</title>
   <meta name="description" content="Hands-free prayer (Salah) Sajdah and Rakat tracker using phone orientation sensor or camera proximity and voice announcements.">
-  <meta name="theme-color" content="#0d9488">
+  <meta name="theme-color" content="#000000">
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script>
     function switchMode(mode) {
       var tabPocket = document.getElementById('tab-pocket');
@@ -38,6 +38,32 @@
         }
       }
     }
+
+    function toggleAmoledTheme() {
+      document.body.classList.toggle('amoled-mode');
+      var isAmoled = document.body.classList.contains('amoled-mode');
+      localStorage.setItem('amoled_theme', isAmoled ? '1' : '0');
+      var icon = document.getElementById('theme-icon');
+      if (icon) icon.textContent = isAmoled ? '☀️' : '🌙';
+    }
+
+    function toggleCameraSettings() {
+      var drawer = document.getElementById('camera-settings-drawer');
+      if (drawer) {
+        drawer.classList.toggle('hidden');
+      }
+    }
+
+    // Restore saved theme on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      var saved = localStorage.getItem('amoled_theme');
+      var isAmoled = saved === '1';
+      if (isAmoled) {
+        document.body.classList.add('amoled-mode');
+        var icon = document.getElementById('theme-icon');
+        if (icon) icon.textContent = '☀️';
+      }
+    });
   </script>
 </head>
 <body>
@@ -47,12 +73,17 @@
         <span class="icon">🕌</span>
         <div>
           <h1>Rakat Tracker</h1>
-          <span class="version-tag">v17</span>
+          <span class="version-tag">v18</span>
         </div>
       </div>
-      <div class="header-badges">
-        <span id="wake-lock-badge" class="badge badge-off">Screen Lock Off</span>
-        <span id="sensor-badge" class="badge badge-off">Standby</span>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" onclick="toggleAmoledTheme()" title="Toggle AMOLED Dark Theme" aria-label="Toggle AMOLED Dark Theme">
+          <span id="theme-icon">🌙</span>
+        </button>
+        <div class="header-badges">
+          <span id="wake-lock-badge" class="badge badge-off">Screen Lock Off</span>
+          <span id="sensor-badge" class="badge badge-off">Standby</span>
+        </div>
       </div>
     </header>
 
@@ -134,24 +165,40 @@
         </details>
       </section>
 
-      <!-- ================= CAMERA MODE VIEW ================= -->
+      <!-- ================= CAMERA MODE VIEW (SUPER AMOLED MINIMAL) ================= -->
       <section id="camera-view" class="mode-view" style="display: none;">
-        <!-- Prominent Display Card Focused on Rakat & Sajdah -->
-        <div class="counter-card camera-counter-card">
+        <!-- Pure Minimalist OLED Counter Screen -->
+        <div class="camera-oled-card">
           <!-- Primary Huge Rakat Counter in Center -->
           <div class="stat-group">
-            <div class="stat-label">Current Rakat</div>
-            <div class="stat-value main-stat camera-huge-rakat" id="camera-rakat-display">1</div>
+            <div class="stat-label">Rakat</div>
+            <div class="camera-huge-rakat" id="camera-rakat-display">1</div>
           </div>
 
-          <!-- Secondary Sajdah Counter (Visible but Smaller than Rakat) -->
+          <!-- Secondary Sajdah Counter (Clean Badge) -->
           <div class="sajdah-stat-container">
             <span class="sajdah-badge-label">Sajdah</span>
             <span class="sajdah-stat-value" id="camera-sajdah-display">0 / 2</span>
           </div>
 
+          <!-- Compact Media Play/Stop + Reset + Settings Button Row -->
+          <div class="camera-compact-controls">
+            <button id="camera-reset-btn" class="media-btn icon-btn" title="Reset Counter" aria-label="Reset Counter">
+              <span>🔄</span>
+            </button>
+            <button id="camera-start-btn" class="media-btn play-btn" title="Start / Stop Tracking" aria-label="Start / Stop Tracking">
+              <span id="camera-btn-icon">▶</span>
+            </button>
+            <button id="camera-settings-toggle-btn" class="media-btn icon-btn" onclick="toggleCameraSettings()" title="Settings" aria-label="Settings">
+              <span>⚙️</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Hidden Behind Settings Gear Button (Revealed Only If Requested) -->
+        <div id="camera-settings-drawer" class="camera-drawer hidden">
           <!-- Posture / Motion Status Banner -->
-          <div class="motion-indicator-wrapper">
+          <div class="motion-indicator-wrapper" style="margin-bottom: 12px;">
             <div class="motion-indicator" id="camera-motion-indicator">
               <span id="camera-posture-text">Standing / Distant</span>
             </div>
@@ -159,73 +206,63 @@
               <div class="pitch-fill" id="camera-proximity-fill" style="height: 5%;"></div>
             </div>
           </div>
-        </div>
 
-        <!-- Action Buttons for Camera Mode placed right under for quick access -->
-        <div class="action-buttons">
-          <button id="camera-start-btn" class="btn btn-primary btn-large">
-            <span class="btn-icon">📷</span> Start Camera Tracking
-          </button>
-          <button id="camera-reset-btn" class="btn btn-secondary">
-            Reset Counter
-          </button>
-        </div>
-
-        <!-- Scrollable Settings / Details Section Below Main View -->
-        <section class="controls-section scrollable-controls">
-          <div class="setting-item toggle-item">
-            <span>Voice Announcement</span>
-            <label class="switch">
-              <input type="checkbox" id="camera-audio-toggle" checked>
-              <span class="slider round"></span>
-            </label>
-          </div>
-
-          <div class="setting-item">
-            <label for="camera-target-rakat">Target Rakats:</label>
-            <select id="camera-target-rakat">
-              <option value="2">2 (Fajr / Sunnah)</option>
-              <option value="3">3 (Maghrib / Witr)</option>
-              <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
-              <option value="99">Unlimited</option>
-            </select>
-          </div>
-
-          <div class="setting-item">
-            <label for="proximity-sensitivity">Sensitivity:</label>
-            <select id="proximity-sensitivity">
-              <option value="medium" selected>Standard (Recommended)</option>
-              <option value="high">High Sensitivity (Dim Light / Farther)</option>
-              <option value="low">Low Sensitivity (Bright Sunlight)</option>
-            </select>
-          </div>
-
-          <!-- Video & Canvas Preview Area Moved Lower -->
-          <div class="camera-preview-container">
-            <video id="camera-video" autoplay playsinline muted></video>
-            <canvas id="camera-canvas" style="display: none;"></canvas>
-            <div class="camera-overlay">
-              <span id="camera-status-text">Camera Standby</span>
-              <span id="proximity-metric">Proximity: 0%</span>
+          <!-- Scrollable Settings / Details Section -->
+          <section class="controls-section">
+            <div class="setting-item toggle-item">
+              <span>Voice Announcement</span>
+              <label class="switch">
+                <input type="checkbox" id="camera-audio-toggle" checked>
+                <span class="slider round"></span>
+              </label>
             </div>
-          </div>
-        </section>
 
-        <!-- Camera Guidance -->
-        <details class="guidance-card">
-          <summary>💡 Mat Placement & Camera Proximity Tips</summary>
-          <div class="guidance-content">
-            <ul>
-              <li><strong>Placement:</strong> Place phone flat facing upward in the <strong>middle of your prayer mat</strong> (between knees and where forehead lands).</li>
-              <li><strong>How it detects:</strong> When you go into Sajdah, your body covers the camera (high proximity). When you sit or stand up, the camera clears up (distant).</li>
-              <li><strong>Silent Option:</strong> Toggle off "Voice Announcement" above if you don't want audio in congregation/public.</li>
-            </ul>
-            <div class="raw-data">
-              <div>Proximity: <strong id="camera-raw-prox">0%</strong></div>
-              <div>State: <strong id="camera-sensor-state">Standby</strong></div>
+            <div class="setting-item">
+              <label for="camera-target-rakat">Target Rakats:</label>
+              <select id="camera-target-rakat">
+                <option value="2">2 (Fajr / Sunnah)</option>
+                <option value="3">3 (Maghrib / Witr)</option>
+                <option value="4" selected>4 (Dhuhr / Asr / Isha)</option>
+                <option value="99">Unlimited</option>
+              </select>
             </div>
-          </div>
-        </details>
+
+            <div class="setting-item">
+              <label for="proximity-sensitivity">Sensitivity:</label>
+              <select id="proximity-sensitivity">
+                <option value="medium" selected>Standard (Recommended)</option>
+                <option value="high">High Sensitivity (Dim Light / Farther)</option>
+                <option value="low">Low Sensitivity (Bright Sunlight)</option>
+              </select>
+            </div>
+
+            <!-- Video & Canvas Preview Area -->
+            <div class="camera-preview-container">
+              <video id="camera-video" autoplay playsinline muted></video>
+              <canvas id="camera-canvas" style="display: none;"></canvas>
+              <div class="camera-overlay">
+                <span id="camera-status-text">Camera Standby</span>
+                <span id="proximity-metric">Proximity: 0%</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Camera Guidance -->
+          <details class="guidance-card" style="margin-top: 12px;">
+            <summary>💡 Mat Placement & Camera Proximity Tips</summary>
+            <div class="guidance-content">
+              <ul>
+                <li><strong>Placement:</strong> Place phone flat facing upward in the <strong>middle of your prayer mat</strong> (between knees and where forehead lands).</li>
+                <li><strong>How it detects:</strong> When you go into Sajdah, your body covers the camera (high proximity). When you sit or stand up, the camera clears up (distant).</li>
+                <li><strong>Silent Option:</strong> Toggle off "Voice Announcement" above if you don't want audio in congregation/public.</li>
+              </ul>
+              <div class="raw-data">
+                <div>Proximity: <strong id="camera-raw-prox">0%</strong></div>
+                <div>State: <strong id="camera-sensor-state">Standby</strong></div>
+              </div>
+            </div>
+          </details>
+        </div>
       </section>
     </main>
 

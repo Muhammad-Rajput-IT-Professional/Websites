@@ -14,6 +14,20 @@
   --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* Super AMOLED True Black Theme */
+body.amoled-mode {
+  --bg-gradient: #000000;
+  --card-bg: #000000;
+  --card-border: rgba(255, 255, 255, 0.15);
+  --primary: #ffffff;
+  --primary-light: #ffffff;
+  --primary-glow: rgba(255, 255, 255, 0.15);
+  --accent: #ffffff;
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  background-color: #000000;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -30,6 +44,7 @@ body {
   justify-content: center;
   align-items: center;
   padding: 16px;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 .app-container {
@@ -37,7 +52,7 @@ body {
   max-width: 480px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .app-header {
@@ -74,6 +89,31 @@ body {
   border-radius: 6px;
   margin-left: 6px;
   vertical-align: middle;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  font-size: 1.1rem;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .header-badges {
@@ -113,6 +153,11 @@ body {
   border: 1px solid var(--card-border);
 }
 
+body.amoled-mode .mode-tabs {
+  background: #000000;
+  border-color: #222222;
+}
+
 .tab-btn {
   flex: 1;
   background: transparent;
@@ -137,82 +182,10 @@ body {
   box-shadow: 0 2px 10px var(--primary-glow);
 }
 
-/* Camera Preview Styling */
-.camera-preview-container {
-  position: relative;
-  width: 100%;
-  height: 140px;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #020617;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-top: 10px;
-}
-
-.camera-preview-container video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scaleX(-1); /* Natural selfie mirror effect */
-}
-
-.camera-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 6px 10px;
-  background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-/* Camera Mode Specific Hero Card */
-.camera-counter-card {
-  padding: 30px 20px;
-  gap: 16px;
-}
-
-.camera-huge-rakat {
-  font-size: 6.5rem !important;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--primary-light);
-  text-shadow: 0 0 28px var(--primary-glow);
-  margin: 6px 0;
-}
-
-.sajdah-stat-container {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid var(--card-border);
-  padding: 6px 16px;
-  border-radius: 20px;
-  margin: 0 auto;
-}
-
-.sajdah-badge-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.sajdah-stat-value {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.scrollable-controls {
-  margin-top: 4px;
+body.amoled-mode .tab-btn.active {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: none;
 }
 
 /* Counter Card */
@@ -226,10 +199,16 @@ body {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   text-align: center;
   position: relative;
   overflow: hidden;
+}
+
+body.amoled-mode .counter-card {
+  background: #000000;
+  box-shadow: none;
+  border-color: #262626;
 }
 
 .stat-group {
@@ -255,23 +234,147 @@ body {
   text-shadow: 0 0 20px var(--primary-glow);
 }
 
-.divider {
-  height: 1px;
-  background: var(--card-border);
-  width: 100%;
+body.amoled-mode .main-stat {
+  color: #ffffff;
+  text-shadow: none;
 }
 
-.stat-row {
+/* ============================================================
+   CAMERA MODE: MINIMALIST OLED SCREEN
+   ============================================================ */
+.camera-oled-card {
+  min-height: 380px;
   display: flex;
-  justify-content: space-around;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 30px 20px 20px 20px;
+  gap: 18px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  position: relative;
+}
+
+body.amoled-mode .camera-oled-card {
+  background: #000000;
+  border: 1px solid #1f1f1f;
+}
+
+.camera-huge-rakat {
+  font-size: 7.5rem !important;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--text-main);
+  margin: 4px 0;
+  letter-spacing: -2px;
+}
+
+body.amoled-mode .camera-huge-rakat {
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.sajdah-stat-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--card-border);
+  padding: 8px 24px;
+  border-radius: 30px;
+}
+
+body.amoled-mode .sajdah-stat-container {
+  background: #000000;
+  border: 1px solid #333333;
+}
+
+.sajdah-badge-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sajdah-stat-value {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+body.amoled-mode .sajdah-stat-value {
+  color: #ffffff;
+}
+
+/* Compact Control Row for Camera Mode */
+.camera-compact-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 10px;
   width: 100%;
 }
 
-.sub-stat {
-  font-size: 1.8rem;
-  font-weight: 700;
+.media-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.media-btn.play-btn {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+
+body.amoled-mode .media-btn.play-btn {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: none;
+}
+
+.media-btn.play-btn.active {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+body.amoled-mode .media-btn.play-btn.active {
+  background: #333333;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+.media-btn.icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+}
+
+.media-btn.icon-btn:hover {
   color: var(--text-main);
-  margin-top: 4px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+body.amoled-mode .media-btn.icon-btn {
+  background: #000000;
+  border-color: #333333;
+  color: #888888;
+}
+
+body.amoled-mode .media-btn.icon-btn:hover {
+  color: #ffffff;
+  border-color: #666666;
 }
 
 /* Motion Indicator */
@@ -286,12 +389,17 @@ body {
   flex: 1;
   background: rgba(15, 23, 42, 0.6);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px 14px;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
   border: 1px solid rgba(255, 255, 255, 0.05);
   transition: all 0.3s ease;
+}
+
+body.amoled-mode .motion-indicator {
+  background: #000000;
+  border-color: #222222;
 }
 
 .motion-indicator.active-sajdah {
@@ -299,6 +407,13 @@ body {
   color: var(--success);
   border-color: var(--success);
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+body.amoled-mode .motion-indicator.active-sajdah {
+  background: #111111;
+  color: #ffffff;
+  border-color: #ffffff;
+  box-shadow: none;
 }
 
 .pitch-meter {
@@ -318,6 +433,44 @@ body {
   transition: height 0.15s ease-out;
 }
 
+/* Camera Preview Styling */
+.camera-preview-container {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #020617;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 10px;
+}
+
+body.amoled-mode .camera-preview-container {
+  background: #000000;
+  border-color: #222222;
+}
+
+.camera-preview-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.camera-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 10px;
+  background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
 /* Controls */
 .controls-section {
   background: var(--card-bg);
@@ -328,6 +481,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+body.amoled-mode .controls-section {
+  background: #000000;
+  border-color: #222222;
 }
 
 .setting-item {
@@ -348,6 +506,21 @@ body {
   font-weight: 600;
   font-family: inherit;
   outline: none;
+}
+
+body.amoled-mode .setting-item select {
+  background: #111111;
+  color: #ffffff;
+  border-color: #333333;
+}
+
+/* Hidden Drawer for Camera Settings */
+.camera-drawer {
+  transition: all 0.3s ease;
+}
+
+.camera-drawer.hidden {
+  display: none !important;
 }
 
 /* Toggle Switch */
@@ -389,6 +562,14 @@ input:checked + .slider {
   background-color: var(--primary);
 }
 
+body.amoled-mode input:checked + .slider {
+  background-color: #ffffff;
+}
+
+body.amoled-mode input:checked + .slider:before {
+  background-color: #000000;
+}
+
 input:checked + .slider:before {
   transform: translateX(20px);
 }
@@ -421,6 +602,12 @@ input:checked + .slider:before {
   box-shadow: 0 4px 14px var(--primary-glow);
 }
 
+body.amoled-mode .btn-primary {
+  background: #ffffff;
+  color: #000000;
+  box-shadow: none;
+}
+
 .btn-primary:active {
   transform: scale(0.98);
 }
@@ -428,6 +615,11 @@ input:checked + .slider:before {
 .btn-primary.active {
   background: var(--danger);
   box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+}
+
+body.amoled-mode .btn-primary.active {
+  background: #333333;
+  color: #ffffff;
 }
 
 .btn-secondary {
@@ -440,6 +632,11 @@ input:checked + .slider:before {
   color: var(--text-main);
 }
 
+body.amoled-mode .btn-secondary {
+  background: #111111;
+  color: #888888;
+}
+
 /* Guidance Card */
 .guidance-card {
   background: var(--card-bg);
@@ -448,6 +645,11 @@ input:checked + .slider:before {
   padding: 14px 18px;
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+body.amoled-mode .guidance-card {
+  background: #000000;
+  border-color: #222222;
 }
 
 .guidance-card summary {

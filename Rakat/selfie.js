@@ -162,7 +162,8 @@ async function startCameraTracking() {
 
     if (startBtn) {
       startBtn.classList.add('active');
-      startBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop Camera Tracking';
+      const icon = document.getElementById('camera-btn-icon');
+      if (icon) icon.textContent = '⏹';
     }
     if (badge) {
       badge.textContent = 'Camera Active';
@@ -203,7 +204,8 @@ function stopCameraTracking() {
   const startBtn = document.getElementById('camera-start-btn');
   if (startBtn) {
     startBtn.classList.remove('active');
-    startBtn.innerHTML = '<span class="btn-icon">📷</span> Start Camera Tracking';
+    const icon = document.getElementById('camera-btn-icon');
+    if (icon) icon.textContent = '▶';
   }
 
   const badge = document.getElementById('sensor-badge');
