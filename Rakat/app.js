@@ -198,7 +198,7 @@ function onStandingUpForNextRakat() {
     const sensorState = document.getElementById('sensor-state');
     if (sensorState) sensorState.textContent = `Rakat ${rakatCount} Started`;
 
-    speak(`Starting Rakat ${rakatCount}`);
+    speak(`Rakat ${rakatCount}`);
   } else {
     speak("Prayer complete");
     stopTracking();

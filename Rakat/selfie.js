@@ -421,7 +421,7 @@ function onCameraStandingUpForNextRakat() {
     const sensorState = document.getElementById('camera-sensor-state');
     if (sensorState) sensorState.textContent = `Rakat ${cameraRakatCount} Started`;
 
-    speakCamera(`Starting Rakat ${cameraRakatCount}`);
+    speakCamera(`Rakat ${cameraRakatCount}`);
   } else {
     speakCamera("Prayer complete");
     stopCameraTracking();

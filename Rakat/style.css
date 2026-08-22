@@ -18,13 +18,13 @@
 body.amoled-mode {
   --bg-gradient: #000000;
   --card-bg: #000000;
-  --card-border: rgba(255, 255, 255, 0.15);
+  --card-border: rgba(255, 255, 255, 0.2);
   --primary: #ffffff;
   --primary-light: #ffffff;
   --primary-glow: rgba(255, 255, 255, 0.15);
   --accent: #ffffff;
   --text-main: #ffffff;
-  --text-muted: #888888;
+  --text-muted: #aaaaaa;
   background-color: #000000;
 }
 
@@ -53,6 +53,57 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Fullscreen Immersive Mode */
+body.fullscreen-active {
+  padding: 0;
+  margin: 0;
+  background: #000000 !important;
+  overflow: hidden;
+}
+
+body.fullscreen-active .app-header,
+body.fullscreen-active .mode-tabs,
+body.fullscreen-active .camera-drawer,
+body.fullscreen-active #pocket-view,
+body.fullscreen-active .camera-oled-card .stat-label {
+  display: none !important;
+}
+
+body.fullscreen-active .app-container {
+  max-width: 100vw;
+  height: 100vh;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+body.fullscreen-active .camera-oled-card {
+  width: 100%;
+  height: 100%;
+  border: none !important;
+  background: #000000 !important;
+  box-shadow: none !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+body.fullscreen-active .camera-huge-rakat {
+  font-size: 11rem !important;
+  margin: 0;
+}
+
+body.fullscreen-active .sajdah-stat-container {
+  padding: 10px 30px;
+  border-color: #444444;
+  background: #000000;
+}
+
+body.fullscreen-active .sajdah-stat-value {
+  font-size: 2.2rem;
 }
 
 .app-header {
@@ -155,7 +206,7 @@ body {
 
 body.amoled-mode .mode-tabs {
   background: #000000;
-  border-color: #222222;
+  border-color: #333333;
 }
 
 .tab-btn {
@@ -258,7 +309,7 @@ body.amoled-mode .main-stat {
 
 body.amoled-mode .camera-oled-card {
   background: #000000;
-  border: 1px solid #1f1f1f;
+  border: 1px solid #262626;
 }
 
 .camera-huge-rakat {
@@ -314,34 +365,39 @@ body.amoled-mode .sajdah-stat-value {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   margin-top: 10px;
   width: 100%;
 }
 
 .media-btn {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  border: none;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s ease;
+  border: 2px solid transparent;
 }
 
 .media-btn.play-btn {
   background: var(--primary);
   color: #ffffff;
   box-shadow: 0 4px 14px var(--primary-glow);
+  width: 60px;
+  height: 60px;
+  font-size: 1.5rem;
 }
 
+/* Fix circular outline in Dark / AMOLED mode */
 body.amoled-mode .media-btn.play-btn {
-  background: #ffffff;
-  color: #000000;
-  box-shadow: none;
+  background: #000000;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
 .media-btn.play-btn.active {
@@ -350,8 +406,8 @@ body.amoled-mode .media-btn.play-btn {
 }
 
 body.amoled-mode .media-btn.play-btn.active {
-  background: #333333;
-  color: #ffffff;
+  background: #ffffff;
+  color: #000000;
   border: 2px solid #ffffff;
 }
 
@@ -368,13 +424,13 @@ body.amoled-mode .media-btn.play-btn.active {
 
 body.amoled-mode .media-btn.icon-btn {
   background: #000000;
-  border-color: #333333;
-  color: #888888;
+  border: 1.5px solid #444444;
+  color: #aaaaaa;
 }
 
 body.amoled-mode .media-btn.icon-btn:hover {
   color: #ffffff;
-  border-color: #666666;
+  border-color: #ffffff;
 }
 
 /* Motion Indicator */
@@ -399,7 +455,7 @@ body.amoled-mode .media-btn.icon-btn:hover {
 
 body.amoled-mode .motion-indicator {
   background: #000000;
-  border-color: #222222;
+  border-color: #333333;
 }
 
 .motion-indicator.active-sajdah {
@@ -437,6 +493,7 @@ body.amoled-mode .motion-indicator.active-sajdah {
 .camera-preview-container {
   position: relative;
   width: 100%;
+  max-width: 100%;
   height: 140px;
   border-radius: 12px;
   overflow: hidden;
@@ -447,7 +504,7 @@ body.amoled-mode .motion-indicator.active-sajdah {
 
 body.amoled-mode .camera-preview-container {
   background: #000000;
-  border-color: #222222;
+  border-color: #333333;
 }
 
 .camera-preview-container video {
@@ -481,11 +538,14 @@ body.amoled-mode .camera-preview-container {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 body.amoled-mode .controls-section {
   background: #000000;
-  border-color: #222222;
+  border-color: #333333;
 }
 
 .setting-item {
@@ -495,40 +555,55 @@ body.amoled-mode .controls-section {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-main);
+  gap: 12px;
+  width: 100%;
 }
 
+.setting-item label {
+  flex-shrink: 0;
+}
+
+/* Constrain dropdown widths so sensitivity box never overflows */
 .setting-item select {
   background: #0f172a;
   color: var(--text-main);
   border: 1px solid var(--card-border);
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-radius: 8px;
   font-weight: 600;
   font-family: inherit;
   outline: none;
+  max-width: 58%;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 body.amoled-mode .setting-item select {
   background: #111111;
   color: #ffffff;
-  border-color: #333333;
+  border-color: #444444;
 }
 
 /* Hidden Drawer for Camera Settings */
 .camera-drawer {
   transition: all 0.3s ease;
+  width: 100%;
+  margin-top: 12px;
 }
 
 .camera-drawer.hidden {
   display: none !important;
 }
 
-/* Toggle Switch */
+/* Toggle Switch - Enhanced Contrast for Dark / AMOLED Mode */
 .switch {
   position: relative;
   display: inline-block;
-  width: 46px;
-  height: 26px;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .switch input {
@@ -541,29 +616,38 @@ body.amoled-mode .setting-item select {
   position: absolute;
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-color: rgba(148, 163, 184, 0.3);
+  background-color: rgba(148, 163, 184, 0.4);
   transition: .3s;
   border-radius: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+body.amoled-mode .slider {
+  background-color: #222222;
+  border: 1.5px solid #666666;
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 18px;
-  width: 18px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
   transition: .3s;
   border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 input:checked + .slider {
   background-color: var(--primary);
+  border-color: var(--primary);
 }
 
 body.amoled-mode input:checked + .slider {
   background-color: #ffffff;
+  border-color: #ffffff;
 }
 
 body.amoled-mode input:checked + .slider:before {
@@ -634,7 +718,8 @@ body.amoled-mode .btn-primary.active {
 
 body.amoled-mode .btn-secondary {
   background: #111111;
-  color: #888888;
+  color: #aaaaaa;
+  border: 1px solid #333333;
 }
 
 /* Guidance Card */
@@ -649,7 +734,7 @@ body.amoled-mode .btn-secondary {
 
 body.amoled-mode .guidance-card {
   background: #000000;
-  border-color: #222222;
+  border-color: #333333;
 }
 
 .guidance-card summary {
